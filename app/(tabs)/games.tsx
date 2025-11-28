@@ -2,9 +2,11 @@ import { useRouter } from 'expo-router';
 import { ArrowUpDown, Clock, Coins, Filter, Search, Star, Users, X } from "lucide-react-native";
 import React, { useState } from "react";
 import { Image, Modal, ScrollView, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from "react-native";
+import { useAccount, useWalletClient } from 'wagmi';
 import globalStyles from "../../styles/global.styles";
 
 import mockGameData from "../../data/mockGame.json";
+import { sendToMasterWallet } from '@/utils/WalletTransfer';
 
 const mockGames = mockGameData.mockGameData;
 
@@ -29,6 +31,8 @@ const difficulties = [
 export default function GamesLibraryScreen() {
   const styles = globalStyles;
   const router = useRouter();
+  const { address } = useAccount();
+  const { data: walletClient } = useWalletClient();
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedGame, setSelectedGame] = useState<any>(null);
 
@@ -37,23 +41,53 @@ export default function GamesLibraryScreen() {
     setShowPaymentModal(true);
   };
 
-  const handleConfirmPayment = async (amount?: string) => {
+  const handleConfirmPayment = async (overrideAmount?: string) => {
     setShowPaymentModal(false);
-    console.log("Payment confirmed for:", selectedGame?.title, "amount:", amount ?? (selectedGame?.reward ?? "0 CELO"));
+    if (!selectedGame) {
+      return;
+    }
+
+    const normalizedOverride = typeof overrideAmount === 'string' ? overrideAmount.trim() : '';
+    const normalizedAmount = typeof selectedGame?.amount === 'string' ? selectedGame.amount.trim() : '';
+    const normalizedEntryFee = typeof selectedGame?.entryFee === 'string' ? selectedGame.entryFee.trim() : '';
+    const normalizedEntry = typeof selectedGame?.entry === 'string' ? selectedGame.entry.trim() : '';
+    const paidAmount = normalizedOverride || normalizedAmount || normalizedEntryFee || normalizedEntry;
+
+    if (paidAmount.length > 0) {
+      if (address) {
+        try {
+          await sendToMasterWallet({ amount: paidAmount, from: address, walletClient });
+        } catch (err) {
+          console.warn('Transfer to master wallet failed', err);
+        }
+      } else {
+        console.warn('Cannot send payment to master wallet: no connected wallet address');
+      }
+    }
+
+    const params = {
+      fromPayment: 'true',
+      title: typeof selectedGame.title === 'string' ? selectedGame.title : '',
+      amount: paidAmount,
+      entry: paidAmount,
+      reward: typeof selectedGame.reward === 'string'
+        ? selectedGame.reward
+        : (typeof selectedGame.subtitle === 'string' ? selectedGame.subtitle : ''),
+    };
 
     try {
-      // Match Cards -> card-match (id 2)
-      if (selectedGame?.id === 1 || selectedGame?.id === '1') {
-        router.push('/games/quiz-game?fromPayment=true');
-      }
-      
-      // Puzzle games -> puzzle-game (id 2)
-      if (selectedGame?.id === 2 || selectedGame?.id === '2') {
-        router.push('/games/puzzle-game?fromPayment=true');
-      }
-      // Match Cards -> card-match (id 3)
-      if (selectedGame?.id === 3 || selectedGame?.id === '3') {
-        router.push('/games/card-match?fromPayment=true');
+      switch (String(selectedGame.id)) {
+        case '1':
+          router.push({ pathname: '/games/quiz-game', params });
+          break;
+        case '2':
+          router.push({ pathname: '/games/puzzle-game', params });
+          break;
+        case '3':
+          router.push({ pathname: '/games/card-match', params });
+          break;
+        default:
+          router.push({ pathname: '/games/quiz-game', params });
       }
     } catch (err) {
       console.warn('Navigation after payment failed', err);
@@ -359,7 +393,7 @@ export default function GamesLibraryScreen() {
                     </TouchableOpacity>
 
                     <TouchableOpacity onPress={() => handleConfirmPayment(selectedGame?.amount)} style={styles.confirmButton}>
-                      <Text style={styles.confirmButtonText}>Pay {selectedGame?.amount ?? '0 R'}</Text>
+                      <Text style={styles.confirmButtonText}>Pay {selectedGame?.amount ?? selectedGame?.entryFee ?? '0 R'}</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
