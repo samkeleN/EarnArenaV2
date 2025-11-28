@@ -148,10 +148,14 @@ export default function RootLayout() {
                 )  
               })()}
               <Stack>
+                <Stack.Screen name="index" options={{ headerShown: false }} />
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                <Stack.Screen name="auth/create-account" options={{ headerShown: false }} />
                 <Stack.Screen name="auth/login" options={{ headerShown: false }} />
-                <Stack.Screen name="+not-found" />
+                <Stack.Screen name="auth/create-account" options={{ headerShown: false }} />
+                <Stack.Screen name="+not-found"  options={{ headerShown: false }} />
+                <Stack.Screen name="games/puzzle-game" options={{ headerShown: false }} />
+                <Stack.Screen name="games/quiz-game" options={{ headerShown: false }} />
+                <Stack.Screen name="games/card-match" options={{ headerShown: false }} />
               </Stack>
               <StatusBar style="auto" />
               {/* This is a workaround for the Android modal issue. https://github.com/expo/expo/issues/32991#issuecomment-2489620459 */}

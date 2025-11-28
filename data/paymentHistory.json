@@ -1,0 +1,39 @@
+{
+    "payments": [
+        {
+            "id": 1,
+            "game": "Daily Global Challenge",
+            "date": "2023-06-15",
+            "amount": "+1.2 CELO",
+            "status": "completed"
+        },
+        {
+            "id": 2,
+            "game": "Memory Match",
+            "date": "2023-06-12",
+            "amount": "-0.1 CELO",
+            "status": "paid"
+        },
+        {
+            "id": 3,
+            "game": "Brain Quiz",
+            "date": "2023-06-10",
+            "amount": "+0.8 CELO",
+            "status": "completed"
+        },
+        {
+            "id": 4,
+            "game": "Speed Challenge",
+            "date": "2023-06-08",
+            "amount": "-0.15 CELO",
+            "status": "paid"
+        },
+        {
+            "id": 5,
+            "game": "Puzzle Master",
+            "date": "2023-06-05",
+            "amount": "+0.5 CELO",
+            "status": "completed"
+        }
+    ]
+}

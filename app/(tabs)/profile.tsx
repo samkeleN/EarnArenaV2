@@ -1,0 +1,361 @@
+import { Calendar, Camera, Coins, Edit3, Mail, Phone, User } from "lucide-react-native";
+import React, { useState, useCallback, useMemo } from "react";
+import { ActivityIndicator, Alert, Image, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import globalStyles from "../../styles/global.styles";
+import { NetworkSwitcher } from "@/components/NetworkSwitcher";
+import { storage } from "@/utils/StorageUtil";
+import { USER_PROFILE_KEY } from "@/constants/storageKeys";
+import { useFocusEffect } from "@react-navigation/native";
+import { GameHistoryEntry, getGameHistory, getUserStats, UserStats, formatHistoryDate } from "@/utils/GameHistory";
+import { retryPendingReward } from "@/utils/RewardWorkflow";
+import { useAccount, useWalletClient } from "wagmi";
+
+type ProfileForm = {
+  fullName: string;
+  username: string;
+  email: string;
+  phone: string;
+};
+
+export default function ProfileScreen() {
+  const styles = globalStyles;
+  const [isEditing, setIsEditing] = useState(false);
+  const [profileData, setProfileData] = useState<ProfileForm>({
+    fullName: "EarnArena Player",
+    username: "",
+    email: "player@example.com",
+    phone: "+1 (555) 123-4567",
+  });
+  const [userStats, setUserStats] = useState<UserStats>({ totalGames: 0, wins: 0, losses: 0 });
+  const [history, setHistory] = useState<GameHistoryEntry[]>([]);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+  const { address } = useAccount();
+  const { data: walletClient } = useWalletClient();
+
+  const awaitingPayments = useMemo(() => history.filter(entry => entry.status === "pending"), [history]);
+  const completedHistory = useMemo(() => history.filter(entry => entry.status !== "pending"), [history]);
+
+  const refreshHistory = useCallback(async () => {
+    try {
+      const updatedHistory = await getGameHistory();
+      setHistory(updatedHistory);
+    } catch (err) {
+      console.warn("Failed to refresh payment history", err);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      (async () => {
+        try {
+          const [storedProfile, stats, gameHistory] = await Promise.all([
+            storage.getItem<Partial<ProfileForm> & { password?: string }>(USER_PROFILE_KEY),
+            getUserStats(),
+            getGameHistory(),
+          ]);
+
+          if (!active) {
+            return;
+          }
+
+          if (storedProfile) {
+            setProfileData(prev => ({
+              fullName: storedProfile.fullName?.trim().length ? storedProfile.fullName.trim() : prev.fullName,
+              username: storedProfile.username?.trim().length ? storedProfile.username.trim() : prev.username,
+              email: storedProfile.email?.trim().length ? storedProfile.email.trim() : prev.email,
+              phone: storedProfile.phone?.trim().length ? storedProfile.phone.trim() : prev.phone,
+            }));
+          }
+
+          setUserStats(stats);
+          setHistory(gameHistory);
+        } catch (err) {
+          console.warn("Failed to load profile information", err);
+        }
+      })();
+
+      return () => {
+        active = false;
+      };
+    }, [])
+  );
+
+  const handleSaveChanges = async () => {
+    setIsEditing(false);
+    try {
+      const existing = await storage.getItem<Record<string, unknown>>(USER_PROFILE_KEY);
+      await storage.setItem(USER_PROFILE_KEY, {
+        ...existing,
+        fullName: profileData.fullName.trim(),
+        username: profileData.username.trim(),
+        email: profileData.email.trim().toLowerCase(),
+        phone: profileData.phone.trim(),
+      });
+    } catch (err) {
+      console.warn("Failed to persist profile information", err);
+    }
+  };
+
+  const greetingName = profileData.username || profileData.fullName.split(" ")[0] || "Player";
+
+  const renderPaymentItem = (item: GameHistoryEntry) => {
+    const amountStyle = item.outcome === "win" ? styles.paymentItemAmountPositive : styles.paymentItemAmountNegative;
+    const shortHash = item.txHash && item.txHash.length > 10 ? `${item.txHash.slice(0, 6)}...${item.txHash.slice(-4)}` : item.txHash;
+
+    return (
+      <View key={item.id} style={styles.paymentItem}>
+        <View style={styles.paymentItemLeft}>
+          <Text style={styles.paymentItemGame}>{item.gameName}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", marginTop: 6 }}>
+            <Calendar color="#95A5A6" size={14} />
+            <Text style={styles.paymentItemDate}>{formatHistoryDate(item.playedAt)}</Text>
+          </View>
+          {item.status === "failed" && (
+            <Text style={styles.paymentStatusFailed}>{item.statusMessage ?? "Reward failed"}</Text>
+          )}
+        </View>
+
+        <View style={{ alignItems: "flex-end" }}>
+          <Text style={amountStyle}>{item.amountDisplay}</Text>
+          {shortHash && item.status === "completed" && (
+            <Text style={styles.paymentTxHash}>{shortHash}</Text>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  const handleRetryReward = useCallback(async (item: GameHistoryEntry) => {
+    if (!address) {
+      Alert.alert("Wallet required", "Connect your wallet to resend the reward request.");
+      return;
+    }
+    if (item.status !== "pending") {
+      return;
+    }
+
+    setRetryingId(item.id);
+    try {
+      await retryPendingReward({ entry: item, playerWalletAddress: address, walletClient });
+      Alert.alert("Reward request sent", "We resent the request to the master wallet. Please approve it from that wallet.");
+    } catch (err) {
+      Alert.alert("Reward Pending", err instanceof Error ? err.message : "Unable to resend reward right now.");
+    } finally {
+      setRetryingId(null);
+      await refreshHistory();
+    }
+  }, [address, refreshHistory, walletClient]);
+
+  const renderAwaitingItem = (item: GameHistoryEntry, index: number) => (
+    <TouchableOpacity
+      key={item.id}
+      style={[
+        styles.awaitingPaymentItem,
+        index === awaitingPayments.length - 1 && { borderBottomWidth: 0, paddingBottom: 0 },
+      ]}
+      onPress={() => handleRetryReward(item)}
+      activeOpacity={0.85}
+      disabled={retryingId === item.id}
+    >
+      <View style={styles.awaitingPaymentLeft}>
+        <Text style={styles.paymentItemGame}>{item.gameName}</Text>
+        <Text style={styles.awaitingPaymentStatus}>{item.statusMessage ?? "Awaiting confirmation"}</Text>
+      </View>
+      <View style={{ alignItems: "flex-end" }}>
+        <Text style={styles.awaitingPaymentAmount}>{item.amountDisplay}</Text>
+        <Text style={styles.awaitingPaymentTime}>{formatHistoryDate(item.playedAt)}</Text>
+        <View style={styles.awaitingPaymentHintRow}>
+          {retryingId === item.id ? (
+            <>
+              <ActivityIndicator size="small" color="#B45309" style={{ marginRight: 6 }} />
+              <Text style={styles.awaitingPaymentSending}>Sending…</Text>
+            </>
+          ) : (
+            <Text style={styles.awaitingPaymentHint}>Tap to resend</Text>
+          )}
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+
+  return (
+    <View style={styles.appContainer}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerRow}>
+          <Text style={{ color: "#0F172A", fontSize: 20, fontWeight: "700" }}>My Profile</Text>
+          <View style={styles.balanceBadge}>
+            <Coins color="#FFD700" size={20} />
+            {/* <Text style={{ color: "#0F172A", fontWeight: "700", marginLeft: 8 }}>20 CELO</Text> */}
+          </View>
+        </View>
+      </View>
+
+      <ScrollView contentContainerStyle={[styles.pagePadding, { paddingBottom: 10 }]} style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+        {/* Profile Section */}
+        <View style={{ paddingHorizontal: 1, marginTop: 10 }}>
+          <View style={styles.profileCard}>
+            <View style={{ alignItems: "center", marginBottom: 8 }}>
+              <View style={{ position: "relative" }}>
+                <Image
+                  source={{ uri: "https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=900&auto=format&fit=crop&q=60" }}
+                  style={styles.profileAvatar}
+                />
+                <TouchableOpacity style={styles.avatarEditButton}>
+                  <Camera color="#FFFFFF" size={16} />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.profileName}>Hey {greetingName}!</Text>
+              <Text style={styles.profileSince}>Player since Jan 2023</Text>
+            </View>
+
+            {/* Profile Stats */}
+            <View style={styles.profileStatsContainer}>
+              <View style={styles.profileStatItem}>
+                <Text style={styles.profileStatNumber}>{userStats.totalGames}</Text>
+                <Text style={styles.profileStatLabel}>Games Played</Text>
+              </View>
+
+              <View style={styles.profileStatItem}>
+                <Text style={styles.profileStatNumber}>{userStats.wins}</Text>
+                <Text style={styles.profileStatLabel}>Wins</Text>
+              </View>
+
+              <View style={styles.profileStatItem}>
+                <Text style={styles.profileStatNumber}>{userStats.losses}</Text>
+                <Text style={styles.profileStatLabel}>Losses</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* Profile Edit Form */}
+        <View style={{ paddingHorizontal: 1, marginTop: 24 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <Text style={{ fontSize: 18, fontWeight: "700", color: "#0F172A" }}>
+              My Details
+            </Text>
+            <TouchableOpacity onPress={() => setIsEditing(!isEditing)} style={{ flexDirection: "row", alignItems: "center" }}>
+              <Edit3
+                color={isEditing ? "#2563EB" : "#95A5A6"}
+                size={18}
+                fill={isEditing ? "#2563EB" : "none"}
+              />
+              <Text style={{ marginLeft: 8, fontWeight: "700", color: isEditing ? "#2563EB" : "#6B7280" }}>
+                {isEditing ? "Done" : "Edit"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.profileDetailsCard}>
+            <View style={styles.profileDetailRow}>
+              <User color="#2563EB" size={18} />
+              <View style={{ marginLeft: 8 }}>
+                <Text style={styles.profileDetailLabel}>Full Name</Text>
+                {isEditing ? (
+                  <TextInput
+                    value={profileData.fullName}
+                    onChangeText={(text) => setProfileData({ ...profileData, fullName: text })}
+                    style={{ backgroundColor: "#F3F4F6", borderRadius: 8, padding: 10, color: "#0F172A", marginTop: 6, minWidth: 220 }}
+                  />
+                ) : (
+                  <Text style={styles.profileDetailValue}>{profileData.fullName}</Text>
+                )}
+              </View>
+            </View>
+
+            <View style={styles.profileDetailRow}>
+              <User color="#2563EB" size={18} />
+              <View style={{ marginLeft: 8 }}>
+                <Text style={styles.profileDetailLabel}>Username</Text>
+                {isEditing ? (
+                  <TextInput
+                    value={profileData.username}
+                    onChangeText={(text) => setProfileData({ ...profileData, username: text })}
+                    autoCapitalize="none"
+                    style={{ backgroundColor: "#F3F4F6", borderRadius: 8, padding: 10, color: "#0F172A", marginTop: 6, minWidth: 220 }}
+                  />
+                ) : (
+                  <Text style={styles.profileDetailValue}>{profileData.username || "--"}</Text>
+                )}
+              </View>
+            </View>
+
+            <View style={styles.profileDetailRow}>
+              <Mail color="#2563EB" size={18} />
+              <View style={{ marginLeft: 8 }}>
+                <Text style={styles.profileDetailLabel}>Email</Text>
+                {isEditing ? (
+                  <TextInput
+                    value={profileData.email}
+                    onChangeText={(text) => setProfileData({ ...profileData, email: text })}
+                    keyboardType="email-address"
+                    style={{ backgroundColor: "#F3F4F6", borderRadius: 8, padding: 10, color: "#0F172A", marginTop: 6, minWidth: 220 }}
+                  />
+                ) : (
+                  <Text style={styles.profileDetailValue}>{profileData.email}</Text>
+                )}
+              </View>
+            </View>
+
+            <View style={styles.profileDetailRow}>
+              <Phone color="#2563EB" size={18} />
+              <View style={{ marginLeft: 8 }}>
+                <Text style={styles.profileDetailLabel}>Phone</Text>
+                {isEditing ? (
+                  <TextInput
+                    value={profileData.phone}
+                    onChangeText={(text) => setProfileData({ ...profileData, phone: text })}
+                    keyboardType="phone-pad"
+                    style={{ backgroundColor: "#F3F4F6", borderRadius: 8, padding: 10, color: "#0F172A", marginTop: 6, minWidth: 220 }}
+                  />
+                ) : (
+                  <Text style={styles.profileDetailValue}>{profileData.phone}</Text>
+                )}
+              </View>
+            </View>
+
+            {isEditing && (
+              <TouchableOpacity onPress={handleSaveChanges} style={{ backgroundColor: "#2563EB", borderRadius: 12, paddingVertical: 12, marginTop: 12, alignItems: "center" }}>
+                <Text style={{ color: "#FFFFFF", fontWeight: "700" }}>Save Changes</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* Payment History */}
+
+        <View style={styles.paymentHistoryContainer}>
+          
+          <Text style={{ fontSize: 18, fontWeight: "700", color: "#0F172A" ,  marginBottom: 12 }}>Wallet Info
+            
+          </Text>
+          
+          <NetworkSwitcher />
+          {awaitingPayments.length > 0 && (
+            <View style={styles.awaitingPaymentContainer}>
+              <Text style={styles.awaitingPaymentHeading}>Awaiting Rewards</Text>
+              <Text style={styles.awaitingPaymentHelper}>Tap an item to resend the reward request.</Text>
+              {awaitingPayments.map((entry, index) => renderAwaitingItem(entry, index))}
+            </View>
+          )}
+
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 , marginTop: awaitingPayments.length > 0 ? 24 : 12}}>
+            
+            <Text style={{ fontSize: 18, fontWeight: "700", color: "#0F172A" }}>Payment History</Text>
+          </View>
+
+          <View>
+            {completedHistory.length === 0 ? (
+              <Text style={{ textAlign: "center", color: "#6B7280", marginTop: 8 }}>No completed payments yet.</Text>
+            ) : (
+              completedHistory.map(renderPaymentItem)
+            )}
+          </View>
+        </View>
+      </ScrollView>
+    </View>
+  );
+}

@@ -24,9 +24,6 @@ export default function CreateAccountScreen() {
   const [form, setForm] = useState<SignupForm>(initialForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-
   useEffect(() => {
     if (!isConnected) {
       router.replace('/');
@@ -75,7 +72,7 @@ export default function CreateAccountScreen() {
       });
 
       const user = await createUserWithEmailAndPassword(auth, sanitizedEmail, sanitizedPassword);
-      
+
       Alert.alert('Account created', 'Your profile is ready. Please sign in to continue.', [
         {
           text: 'Go to sign in',

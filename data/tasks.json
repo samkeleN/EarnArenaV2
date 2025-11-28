@@ -1,0 +1,40 @@
+{
+    "tasks": [
+        {
+            "id": "task-1",
+            "title": "Create Games Library Screen",
+            "status": "pending",
+            "asignedAgent": "createScreenAgent",
+            "description": "Create a comprehensive games library screen UI showing all available games categorized by type (Most Played, Explore More sections). Include game cards with images, titles, reward amounts, player counts, and difficulty levels. Add filtering and sorting options using mock data.",
+            "createdAt": "2024-01-15T10:30:00.000Z",
+            "updatedAt": "2024-01-15T10:30:00.000Z"
+        },
+        {
+            "id": "task-2",
+            "title": "Create Rank Dashboard Screen",
+            "status": "pending",
+            "asignedAgent": "createScreenAgent",
+            "description": "Create a leaderboard/rank dashboard screen UI displaying global rankings with user rewards (+20 CELO format), usernames, ranks, and game performance stats. Include tabs or sections for global winners and personal ranking position using mock data.",
+            "createdAt": "2024-01-15T10:30:00.000Z",
+            "updatedAt": "2024-01-15T10:30:00.000Z"
+        },
+        {
+            "id": "task-3",
+            "title": "Create User Profile Screen",
+            "status": "pending",
+            "asignedAgent": "createScreenAgent",
+            "description": "Create a user profile screen UI with avatar image display, username (Hey <username>), CELO balance (20 CELO), payment history list, and profile update form. Include sections for viewing transaction history and editing user details using mock data.",
+            "createdAt": "2024-01-15T10:30:00.000Z",
+            "updatedAt": "2024-01-15T10:30:00.000Z"
+        },
+        {
+            "id": "task-4",
+            "title": "Create Bottom Navigation",
+            "status": "pending",
+            "asignedAgent": "updateScreenAgent",
+            "description": "Add a bottom navigation bar to the app with tabs for HOME, GAMES, RANKS, and PROFILE screens. Implement navigation between these screens using Expo Router. Style the navigation bar to match the app's design system with icons and active state indicators.",
+            "createdAt": "2024-01-15T10:30:00.000Z",
+            "updatedAt": "2024-01-15T10:30:00.000Z"
+        }
+    ]
+}

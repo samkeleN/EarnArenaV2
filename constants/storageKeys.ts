@@ -1,1 +1,3 @@
-export const USER_PROFILE_KEY = 'earnArena:userProfile';
+export const USER_PROFILE_KEY = 'USER_PROFILE';
+export const USER_STATS_KEY = 'USER_STATS';
+export const GAME_HISTORY_KEY = 'GAME_HISTORY';
