@@ -1,0 +1,1 @@
+export const MASTER_WALLET_ADDRESS = '0x85caf100714e1b16c090dbdf5ee53ecaa384864e';

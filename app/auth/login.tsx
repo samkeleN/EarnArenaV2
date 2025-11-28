@@ -3,11 +3,8 @@ import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAccount } from 'wagmi';
-// import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
-
-import { storage } from '@/utils/StorageUtil';
-import { USER_PROFILE_KEY } from '@/constants/storageKeys';
 import { signInWithEmailAndPassword } from 'firebase/auth';
+
 import { auth } from '@/utils/FirebaseConfig';
 
 
@@ -55,47 +52,19 @@ export default function LoginScreen() {
     setIsSubmitting(true);
 
     try {
-      if (auth) {
-        try {
-        //   const credentials = await signInWithEmailAndPassword(auth, normalizedEmail, password);
-        //   if (credentials.user) {
-            router.replace('/(tabs)');
-            // return;
-        //   }
-        } catch (firebaseError) {
-          console.warn('Firebase sign-in failed, falling back to local profile', firebaseError);
-        }
-      }
-
-      const profile = await storage.getItem<{ email?: string; password?: string }>(USER_PROFILE_KEY);
-
-      if (!profile || !profile.email || !profile.password) {
-        Alert.alert('Sign in', 'No account found. Please create one first.');
-        return;
-      }
-
-      if (profile.email !== normalizedEmail) {
-        Alert.alert('Sign in', 'We could not find that email.');
-        return;
-      }
-
-      if (profile.password !== password) {
-        Alert.alert('Sign in', 'Your password is incorrect.');
-        return;
-      }
-
-      const user = await signInWithEmailAndPassword(auth, normalizedEmail, password);
-      if (user) {
+      const credentials = await signInWithEmailAndPassword(auth, normalizedEmail, password);
+      if (credentials.user) {
         router.replace('/(tabs)');
         return;
       }
+      Alert.alert('Sign in', 'We could not verify your credentials. Try again.');
     } catch (error) {
-      Alert.alert('Sign in', 'Something went wrong. Try again.');
+      Alert.alert('Sign in', 'We could not verify your credentials. Try again.');
       console.warn('LoginScreen handleSubmit error', error);
     } finally {
       setIsSubmitting(false);
     }
-  }, [auth, form.email, form.password, isSubmitting, router]);
+  }, [form.email, form.password, isSubmitting, router]);
 
   if (!isConnected) {
     return null;
