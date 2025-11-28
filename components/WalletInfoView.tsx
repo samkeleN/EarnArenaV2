@@ -9,32 +9,24 @@ interface Props {
 
 export function WalletInfoView({style}: Props) {
   const {walletInfo} = useWalletInfo();
-
   return walletInfo ? (
-    <FlexView style={style} alignItems="center">
-      <Text variant="small-600" style={styles.label}>
-        Connected to
-      </Text>
-      <FlexView flexDirection="row" alignItems="center">
-        {walletInfo?.icons?.[0] && (
-          <Image style={styles.logo} source={{uri: walletInfo?.icons?.[0]}} />
-        )}
-        {walletInfo?.name && (
-          <Text variant="small-400">{walletInfo?.name}</Text>
-        )}
-      </FlexView>
+    <FlexView style={[style, styles.container]}>
+      <Text>{walletInfo.name}</Text>
+      {walletInfo?.icons?.[0] && (
+        <Image style={styles.logo} source={{uri: walletInfo?.icons?.[0]}} />
+      )}
     </FlexView>
   ) : null;
 }
 
 const styles = StyleSheet.create({
-  label: {
-    marginBottom: 2,
-  },
   logo: {
     width: 20,
     height: 20,
     borderRadius: 5,
-    marginRight: 4,
+  },
+  container: {
+    alignItems: 'flex-end',
+    marginLeft: 'auto',
   },
 });
