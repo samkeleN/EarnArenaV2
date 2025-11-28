@@ -341,14 +341,14 @@ export default function GamesLibraryScreen() {
                   <View style={{ borderTopWidth: 1, borderTopColor: '#F3F4F6', paddingTop: 12, marginBottom: 8 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                       <Text style={{ color: '#6B7280' }}>Amount</Text>
-                      <Text style={{ fontWeight: '700' }}>{selectedGame?.reward ?? '0 CELO'}</Text>
+                      <Text style={{ fontWeight: '700' }}>{selectedGame?.amount ?? selectedGame?.entryFee ?? '0 R'}</Text>
                     </View>
 
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Text style={{ color: '#6B7280' }}>Your Balance</Text>
+                      <Text style={{ color: '#6B7280' }}>Reward</Text>
                       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                         <Coins color="#F59E0B" size={16} />
-                        <Text style={{ fontWeight: '700', marginLeft: 8 }}>20 CELO</Text>
+                        <Text style={{ fontWeight: '700', marginLeft: 8 }}> {selectedGame?.reward ?? selectedGame?.subtitle ?? 'R 0'}</Text>
                       </View>
                     </View>
                   </View>
@@ -358,8 +358,8 @@ export default function GamesLibraryScreen() {
                       <Text style={styles.cancelButtonText}>Cancel</Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity onPress={() => handleConfirmPayment()} style={styles.confirmButton}>
-                      <Text style={styles.confirmButtonText}>Confirm</Text>
+                    <TouchableOpacity onPress={() => handleConfirmPayment(selectedGame?.amount)} style={styles.confirmButton}>
+                      <Text style={styles.confirmButtonText}>Pay {selectedGame?.amount ?? '0 R'}</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
