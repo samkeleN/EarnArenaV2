@@ -3,6 +3,7 @@ import { View, StyleSheet, Switch, Text, DevSettings, Alert, ActivityIndicator }
 import { WalletInfoView } from './WalletInfoView';
 import { auth, db } from '@/utils/FirebaseConfig';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import AddNetworkButton from './AddNetworkButton';
 
 export function NetworkSwitcher() {
   const [enabled, setEnabled] = useState(false); // true = mainnet, false = testnet
@@ -68,7 +69,6 @@ export function NetworkSwitcher() {
         <Switch onValueChange={toggle} value={enabled} disabled={saving} />
         {saving && <ActivityIndicator size="small" style={{ marginLeft: 8 }} />}
       <WalletInfoView/>
-
       </View>
       <Text style={styles.note}>
         {enabled ? 'Mainnet selected. Wallets will default to Celo Mainnet.' : 'Testnet selected. Wallets will default to Celo Alfajores.'}

@@ -20,6 +20,9 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { storage } from "@/utils/StorageUtil";
 import { View } from 'react-native';
 import { useEffect, useState } from 'react';
+import { auth, db } from '@/utils/FirebaseConfig';
+import { onAuthStateChanged } from 'firebase/auth';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 const clipboardClient = {
   setString: async (value: string) => {
@@ -58,14 +61,43 @@ export default function RootLayout() {
   const [appkitInstance, setAppkitInstance] = useState<any | null>(null);
   const [wagmiAdapterInstance, setWagmiAdapterInstance] = useState<any | null>(null);
   const [selectedChain, setSelectedChain] = useState<any | null>(null);
+  const fallbackNetwork = __DEV__ ? 'testnet' : 'mainnet';
+  const [userId, setUserId] = useState<string | null>(auth.currentUser?.uid ?? null);
+  const [preferredNetwork, setPreferredNetwork] = useState<string>(fallbackNetwork);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUserId(user?.uid ?? null);
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    if (!userId) {
+      setPreferredNetwork(fallbackNetwork);
+      return;
+    }
+    const ref = doc(db, 'users', userId);
+    const unsubscribe = onSnapshot(ref, (snapshot) => {
+      const preferred = snapshot.exists() ? (snapshot.data()?.preferredNetwork as string | undefined) : undefined;
+      if (preferred === 'mainnet' || preferred === 'testnet') {
+        setPreferredNetwork(preferred);
+      } else {
+        setPreferredNetwork(fallbackNetwork);
+      }
+    }, () => {
+      setPreferredNetwork(fallbackNetwork);
+    });
+    return unsubscribe;
+  }, [userId, fallbackNetwork]);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const stored = await storage.getItem<string>('APP_NETWORK');
+        setReady(false);
         const envNetwork = process.env.APP_NETWORK;
-        const network = stored ?? envNetwork ?? (__DEV__ ? 'testnet' : 'mainnet');
+        const network = preferredNetwork ?? envNetwork ?? fallbackNetwork;
         const selected = network === 'mainnet' ? celo : celoSepolia;
 
         // Only include Celo (selected) in networks — app focuses on Celo only
@@ -112,6 +144,7 @@ export default function RootLayout() {
           if (!mounted) return;
           setWagmiAdapterInstance(wagmiAdpt);
           setAppkitInstance(kit);
+          setSelectedChain(fallbackSelected);
         } catch (err) {
           console.warn('Failed to initialize AppKit', err);
         }
@@ -120,7 +153,7 @@ export default function RootLayout() {
       }
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [preferredNetwork, fallbackNetwork]);
 
   if (!loaded) {
     // Async font loading only occurs in development.

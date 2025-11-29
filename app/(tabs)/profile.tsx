@@ -282,7 +282,6 @@ export default function ProfileScreen() {
           <Text style={{ color: "#0F172A", fontSize: 20, fontWeight: "700" }}>My Profile</Text>
           <View style={styles.balanceBadge}>
             <Coins color="#FFD700" size={20} />
-            {/* <Text style={{ color: "#0F172A", fontWeight: "700", marginLeft: 8 }}>20 CELO</Text> */}
           </View>
         </View>
       </View>
