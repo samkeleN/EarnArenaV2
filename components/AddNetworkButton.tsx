@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Button, Alert } from 'react-native';
 import { useWalletClient } from 'wagmi';
-import { storage } from '@/utils/StorageUtil';
-import { celo, celoAlfajores, celoSepolia } from '../src/chains/celoChains';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '@/utils/FirebaseConfig';
+import { celo, celoSepolia } from '../src/chains/celoChains';
 
 function toHexChainId(id: number) {
   return '0x' + id.toString(16);
@@ -15,8 +16,20 @@ export default function AddNetworkButton() {
   const handleAdd = async () => {
     setBusy(true);
     try {
-      const stored = await storage.getItem<string>('APP_NETWORK');
-      const network = stored ?? (__DEV__ ? 'testnet' : 'mainnet');
+      const currentUser = auth.currentUser;
+      let network = __DEV__ ? 'testnet' : 'mainnet';
+      if (currentUser) {
+        try {
+          const ref = doc(db, 'users', currentUser.uid);
+          const snap = await getDoc(ref);
+          const preferred = snap.exists() ? (snap.data()?.preferredNetwork as string | undefined) : undefined;
+          if (preferred === 'mainnet' || preferred === 'testnet') {
+            network = preferred;
+          }
+        } catch (err) {
+          // fall back to default
+        }
+      }
       const chain = network === 'mainnet' ? celo : celoSepolia;
 
       const chainIdHex = toHexChainId(chain.id as number);

@@ -4,7 +4,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useAccount, useWalletClient } from 'wagmi';
 import { sendToMasterWallet } from '@/utils/WalletTransfer';
 
-const DEFAULT_AMOUNT = '0.1';
+const DEFAULT_AMOUNT = '0';
 
 export default function SendCeloButton() {
   const { address } = useAccount();
