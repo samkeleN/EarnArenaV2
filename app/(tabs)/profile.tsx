@@ -3,12 +3,12 @@ import React, { useState, useCallback, useMemo } from "react";
 import { ActivityIndicator, Alert, Image, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
 import globalStyles from "../../styles/global.styles";
 import { NetworkSwitcher } from "@/components/NetworkSwitcher";
-import { storage } from "@/utils/StorageUtil";
-import { USER_PROFILE_KEY } from "@/constants/storageKeys";
 import { useFocusEffect } from "@react-navigation/native";
 import { GameHistoryEntry, getGameHistory, getUserStats, UserStats, formatHistoryDate } from "@/utils/GameHistory";
 import { retryPendingReward } from "@/utils/RewardWorkflow";
 import { useAccount, useWalletClient } from "wagmi";
+import { auth, db } from "@/utils/FirebaseConfig";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 
 type ProfileForm = {
   fullName: string;
@@ -49,8 +49,26 @@ export default function ProfileScreen() {
       let active = true;
       (async () => {
         try {
-          const [storedProfile, stats, gameHistory] = await Promise.all([
-            storage.getItem<Partial<ProfileForm> & { password?: string }>(USER_PROFILE_KEY),
+          const loadProfile = async () => {
+            const currentUser = auth.currentUser;
+            if (!currentUser) {
+              return null;
+            }
+            try {
+              const ref = doc(db, "users", currentUser.uid);
+              const snap = await getDoc(ref);
+              if (!snap.exists()) {
+                return null;
+              }
+              return snap.data() as Partial<ProfileForm>;
+            } catch (profileErr) {
+              console.warn("Failed to fetch profile from Firestore", profileErr);
+              return null;
+            }
+          };
+
+          const [cloudProfile, stats, gameHistory] = await Promise.all([
+            loadProfile(),
             getUserStats(),
             getGameHistory(),
           ]);
@@ -59,12 +77,12 @@ export default function ProfileScreen() {
             return;
           }
 
-          if (storedProfile) {
+          if (cloudProfile) {
             setProfileData(prev => ({
-              fullName: storedProfile.fullName?.trim().length ? storedProfile.fullName.trim() : prev.fullName,
-              username: storedProfile.username?.trim().length ? storedProfile.username.trim() : prev.username,
-              email: storedProfile.email?.trim().length ? storedProfile.email.trim() : prev.email,
-              phone: storedProfile.phone?.trim().length ? storedProfile.phone.trim() : prev.phone,
+              fullName: cloudProfile.fullName?.trim().length ? cloudProfile.fullName.trim() : prev.fullName,
+              username: cloudProfile.username?.trim().length ? cloudProfile.username.trim() : prev.username,
+              email: cloudProfile.email?.trim().length ? cloudProfile.email.trim() : prev.email,
+              phone: cloudProfile.phone?.trim().length ? cloudProfile.phone.trim() : prev.phone,
             }));
           }
 
@@ -83,17 +101,27 @@ export default function ProfileScreen() {
 
   const handleSaveChanges = async () => {
     setIsEditing(false);
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      Alert.alert("Profile", "You need to sign in before updating your profile details.");
+      return;
+    }
     try {
-      const existing = await storage.getItem<Record<string, unknown>>(USER_PROFILE_KEY);
-      await storage.setItem(USER_PROFILE_KEY, {
-        ...existing,
-        fullName: profileData.fullName.trim(),
-        username: profileData.username.trim(),
-        email: profileData.email.trim().toLowerCase(),
-        phone: profileData.phone.trim(),
-      });
+      await setDoc(
+        doc(db, "users", currentUser.uid),
+        {
+          fullName: profileData.fullName.trim(),
+          username: profileData.username.trim(),
+          email: profileData.email.trim().toLowerCase(),
+          phone: profileData.phone.trim(),
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+      Alert.alert("Profile updated", "Your details have been saved to the cloud.");
     } catch (err) {
       console.warn("Failed to persist profile information", err);
+      Alert.alert("Profile", "We couldn't save your changes. Please try again.");
     }
   };
 

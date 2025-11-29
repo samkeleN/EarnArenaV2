@@ -1,5 +1,15 @@
-import { storage } from './StorageUtil';
-import { GAME_HISTORY_KEY, USER_STATS_KEY } from '@/constants/storageKeys';
+import { auth, db } from '@/utils/FirebaseConfig';
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  limit as limitQuery,
+  orderBy,
+  query,
+  setDoc,
+} from 'firebase/firestore';
 
 export type GameOutcome = 'win' | 'loss';
 export type PaymentStatus = 'pending' | 'completed' | 'failed';
@@ -30,6 +40,58 @@ const DEFAULT_STATS: UserStats = {
 };
 
 const HISTORY_LIMIT = 50;
+const HISTORY_COLLECTION = 'gameHistory';
+
+const removeUndefined = <T extends Record<string, any>>(value: T): T => {
+  Object.keys(value).forEach((key) => {
+    if (value[key] === undefined) {
+      delete value[key];
+    }
+  });
+  return value;
+};
+
+const getCurrentUserId = () => auth.currentUser?.uid ?? null;
+
+const requireUserId = () => {
+  const uid = getCurrentUserId();
+  if (!uid) {
+    throw new Error('User must be authenticated to access game history');
+  }
+  return uid;
+};
+
+const getUserDocRef = (uid: string) => doc(db, 'users', uid);
+const getHistoryCollectionRef = (uid: string) => collection(getUserDocRef(uid), HISTORY_COLLECTION);
+
+const readStatsSnapshot = async (uid: string): Promise<UserStats> => {
+  try {
+    const snapshot = await getDoc(getUserDocRef(uid));
+    const stats = snapshot.exists() ? (snapshot.data()?.stats as Partial<UserStats> | undefined) : undefined;
+    return {
+      totalGames: stats?.totalGames ?? DEFAULT_STATS.totalGames,
+      wins: stats?.wins ?? DEFAULT_STATS.wins,
+      losses: stats?.losses ?? DEFAULT_STATS.losses,
+    };
+  } catch (err) {
+    console.warn('Failed to fetch stats snapshot', err);
+    return DEFAULT_STATS;
+  }
+};
+
+const enforceHistoryLimit = async (uid: string) => {
+  try {
+    const historyRef = getHistoryCollectionRef(uid);
+    const snapshot = await getDocs(query(historyRef, orderBy('playedAt', 'desc')));
+    if (snapshot.size <= HISTORY_LIMIT) {
+      return;
+    }
+    const overflow = snapshot.docs.slice(HISTORY_LIMIT);
+    await Promise.all(overflow.map(entry => deleteDoc(entry.ref)));
+  } catch (err) {
+    console.warn('Failed to prune history entries', err);
+  }
+};
 
 const generateId = () => `${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
 
@@ -78,28 +140,19 @@ export async function recordGameResult(params: {
   txHash?: string | null;
 }) {
   const { gameName, outcome, amount, recordedAt, status, statusMessage, txHash } = params;
-  const stats = {
-    ...DEFAULT_STATS,
-    ...(await storage.getItem<UserStats>(USER_STATS_KEY) ?? {}),
-  };
+  const uid = requireUserId();
+  const stats = await readStatsSnapshot(uid);
 
-  const history = [...(await storage.getItem<PersistedGameHistoryEntry[]>(GAME_HISTORY_KEY) ?? [])];
-
-  const entry: GameHistoryEntry = {
+  const entry = removeUndefined({
     id: generateId(),
     gameName: gameName || 'Unknown Game',
     outcome,
     amountDisplay: formatAmountDisplay(amount, outcome),
     playedAt: typeof recordedAt === 'string' ? recordedAt : (recordedAt ?? new Date()).toISOString(),
     status: status ?? 'completed',
-    statusMessage,
-    txHash: txHash ?? null,
-  };
-
-  const nextHistory = [entry, ...history];
-  if (nextHistory.length > HISTORY_LIMIT) {
-    nextHistory.length = HISTORY_LIMIT;
-  }
+    statusMessage: typeof statusMessage === 'string' ? statusMessage : undefined,
+    txHash: typeof txHash === 'string' ? txHash : null,
+  }) as GameHistoryEntry;
 
   const nextStats: UserStats = {
     totalGames: stats.totalGames + 1,
@@ -107,52 +160,71 @@ export async function recordGameResult(params: {
     losses: stats.losses + (outcome === 'loss' ? 1 : 0),
   };
 
+  const userRef = getUserDocRef(uid);
+  const historyRef = doc(getHistoryCollectionRef(uid), entry.id);
+
   await Promise.all([
-    storage.setItem(GAME_HISTORY_KEY, nextHistory),
-    storage.setItem(USER_STATS_KEY, nextStats),
+    setDoc(historyRef, entry),
+    setDoc(userRef, { stats: nextStats }, { merge: true }),
   ]);
+
+  enforceHistoryLimit(uid).catch(err => console.warn('History limit enforcement failed', err));
 
   return entry;
 }
 
 export async function getUserStats(): Promise<UserStats> {
-  const stored = await storage.getItem<UserStats>(USER_STATS_KEY);
-  return {
-    totalGames: stored?.totalGames ?? DEFAULT_STATS.totalGames,
-    wins: stored?.wins ?? DEFAULT_STATS.wins,
-    losses: stored?.losses ?? DEFAULT_STATS.losses,
-  };
+  const uid = getCurrentUserId();
+  if (!uid) {
+    return DEFAULT_STATS;
+  }
+  return await readStatsSnapshot(uid);
 }
 
 export async function getGameHistory(limit?: number): Promise<GameHistoryEntry[]> {
-  const history = await storage.getItem<PersistedGameHistoryEntry[]>(GAME_HISTORY_KEY);
-  if (!history || history.length === 0) {
+  const uid = getCurrentUserId();
+  if (!uid) {
     return [];
   }
-  const normalized = history.map((entry) => withDefaults(entry));
-  if (!limit || limit >= normalized.length) {
-    return normalized;
+  try {
+    const baseQuery = query(
+      getHistoryCollectionRef(uid),
+      orderBy('playedAt', 'desc'),
+      ...(limit && limit > 0 ? [limitQuery(limit)] : [])
+    );
+
+    const snapshot = await getDocs(baseQuery);
+    return snapshot.docs.map((docSnap) => withDefaults(docSnap.data() as PersistedGameHistoryEntry));
+  } catch (err) {
+    console.warn('Failed to load game history from Firestore', err);
+    return [];
   }
-  return normalized.slice(0, limit);
 }
 
 type UpdatableHistoryFields = Pick<GameHistoryEntry, 'status' | 'statusMessage' | 'txHash' | 'amountDisplay' | 'playedAt'>;
 
 export async function updateGameHistoryEntry(id: string, updates: Partial<UpdatableHistoryFields>): Promise<GameHistoryEntry | null> {
-  const history = await storage.getItem<PersistedGameHistoryEntry[]>(GAME_HISTORY_KEY);
-  if (!history || history.length === 0) {
+  const uid = getCurrentUserId();
+  if (!uid) {
     return null;
   }
-
-  const idx = history.findIndex((entry) => entry.id === id);
-  if (idx === -1) {
+  try {
+    const entryRef = doc(getHistoryCollectionRef(uid), id);
+    const snapshot = await getDoc(entryRef);
+    if (!snapshot.exists()) {
+      return null;
+    }
+    const target = withDefaults(snapshot.data() as PersistedGameHistoryEntry);
+    const next = removeUndefined({
+      ...target,
+      ...updates,
+      txHash: updates.txHash === undefined ? target.txHash ?? null : updates.txHash,
+      statusMessage: updates.statusMessage === undefined ? target.statusMessage : updates.statusMessage,
+    }) as GameHistoryEntry;
+    await setDoc(entryRef, next, { merge: true });
+    return next;
+  } catch (err) {
+    console.warn('Failed to update game history entry', err);
     return null;
   }
-
-  const target = withDefaults(history[idx]);
-  const next = { ...target, ...updates } as GameHistoryEntry;
-  const nextHistory: PersistedGameHistoryEntry[] = [...history];
-  nextHistory[idx] = next;
-  await storage.setItem(GAME_HISTORY_KEY, nextHistory);
-  return next;
 }
