@@ -1,10 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { Button, Alert } from 'react-native';
 import { useWalletClient } from 'wagmi';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { onAuthStateChanged } from 'firebase/auth';
-import { auth, db } from '@/utils/FirebaseConfig';
-import { celo, celoSepolia } from '../src/chains/celoChains';
+import { storage } from '@/utils/StorageUtil';
+import { celo, celoAlfajores, celoSepolia } from '../src/chains/celoChains';
 
 function toHexChainId(id: number) {
   return '0x' + id.toString(16);
@@ -13,47 +11,12 @@ function toHexChainId(id: number) {
 export default function AddNetworkButton() {
   const { data: walletClient } = useWalletClient();
   const [busy, setBusy] = useState(false);
-  const fallbackNetwork = __DEV__ ? 'testnet' : 'mainnet';
-  const [preferredNetwork, setPreferredNetwork] = useState<string>(fallbackNetwork);
-  const [userId, setUserId] = useState<string | null>(auth.currentUser?.uid ?? null);
-  const lastNetworkRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUserId(user?.uid ?? null);
-    });
-    return unsubscribe;
-  }, []);
-
-  useEffect(() => {
-    if (!userId) {
-      setPreferredNetwork(fallbackNetwork);
-      lastNetworkRef.current = null;
-      return;
-    }
-    const userRef = doc(db, 'users', userId);
-    const unsubscribe = onSnapshot(
-      userRef,
-      (snapshot) => {
-        const preferred = snapshot.exists() ? (snapshot.data()?.preferredNetwork as string | undefined) : undefined;
-        const next = preferred === 'mainnet' ? 'mainnet' : preferred === 'testnet' ? 'testnet' : fallbackNetwork;
-        setPreferredNetwork(next);
-        if (lastNetworkRef.current && lastNetworkRef.current !== next) {
-          Alert.alert('Preferred network updated', `Preference changed to ${next === 'mainnet' ? 'Celo Mainnet' : 'Celo Testnet'}.`);
-        }
-        lastNetworkRef.current = next;
-      },
-      (err) => {
-        console.warn('Failed to subscribe to preferred network', err);
-      }
-    );
-    return unsubscribe;
-  }, [userId, fallbackNetwork]);
 
   const handleAdd = async () => {
     setBusy(true);
     try {
-      const network = preferredNetwork ?? fallbackNetwork;
+      const stored = await storage.getItem<string>('APP_NETWORK');
+      const network = stored ?? (__DEV__ ? 'testnet' : 'mainnet');
       const chain = network === 'mainnet' ? celo : celoSepolia;
 
       const chainIdHex = toHexChainId(chain.id as number);

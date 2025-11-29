@@ -11,18 +11,6 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
-  const { isConnected } = useAccount();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!isConnected) {
-      router.replace('../');
-    }
-  }, [isConnected, router]);
-
-  if (!isConnected) {
-    return null;
-  }
 
   return (
     <Tabs
