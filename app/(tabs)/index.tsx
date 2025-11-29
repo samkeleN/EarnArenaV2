@@ -1,6 +1,7 @@
 import '@walletconnect/react-native-compat';
 import { Image } from 'expo-image';
-import React, { useState, useCallback } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Text } from 'react-native';
 
 import { Clock, Coins, Play, Star, Trophy, X } from "lucide-react-native";
@@ -20,6 +21,22 @@ import { doc, getDoc } from 'firebase/firestore';
 
 const styles = globalStyles;
 
+const DAILY_CHALLENGE_STORAGE_KEY = 'dailyChallengeState';
+const CHALLENGE_DURATION_MS = 24 * 60 * 60 * 1000;
+
+type StoredChallengeState = {
+  nextChallengeAt: string;
+  gameId: number | null;
+};
+
+const formatCountdown = (diffMs: number) => {
+  const totalSeconds = Math.max(0, Math.floor(diffMs / 1000));
+  const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+  const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+  const seconds = String(totalSeconds % 60).padStart(2, '0');
+  return `${hours}:${minutes}:${seconds}`;
+};
+
 export default function HomeScreen() {
   const router = useRouter();
   const { address } = useAccount();
@@ -28,6 +45,106 @@ export default function HomeScreen() {
   const [selectedGame, setSelectedGame] = useState<any>(null);
   const [displayName, setDisplayName] = useState<string>('Player');
   const [stats, setStats] = useState<UserStats>({ totalGames: 0, wins: 0, losses: 0 });
+  const featuredGames: Game[] = useMemo(() => featuredData.featuredGames ?? [], []);
+  const gameCategories = useMemo(() => categoriesData.gameCategories ?? [], []);
+  const [nextChallengeAt, setNextChallengeAt] = useState<string | null>(null);
+  const [challengeCountdown, setChallengeCountdown] = useState('--:--:--');
+  const [challengeGame, setChallengeGame] = useState<Game | null>(null);
+
+  const pickRandomGame = useCallback((): Game | null => {
+    if (!featuredGames.length) {
+      return null;
+    }
+    const randomIndex = Math.floor(Math.random() * featuredGames.length);
+    return featuredGames[randomIndex] ?? null;
+  }, [featuredGames]);
+
+  const persistChallengeState = useCallback(async (state: StoredChallengeState) => {
+    try {
+      await AsyncStorage.setItem(DAILY_CHALLENGE_STORAGE_KEY, JSON.stringify(state));
+    } catch (err) {
+      console.warn('Failed to persist challenge state', err);
+    }
+  }, []);
+
+  const scheduleNextChallenge = useCallback(async (anchorMs?: number) => {
+    if (!featuredGames.length) {
+      setNextChallengeAt(null);
+      setChallengeGame(null);
+      setChallengeCountdown('--:--:--');
+      return;
+    }
+    const base = typeof anchorMs === 'number' ? anchorMs : Date.now();
+    const deadline = new Date(base + CHALLENGE_DURATION_MS).toISOString();
+    const selection = pickRandomGame();
+    setNextChallengeAt(deadline);
+    setChallengeGame(selection);
+    await persistChallengeState({ nextChallengeAt: deadline, gameId: selection?.id ?? null });
+  }, [featuredGames, persistChallengeState, pickRandomGame]);
+
+  const hydrateChallengeFromStorage = useCallback(async () => {
+    if (!featuredGames.length) {
+      setChallengeGame(null);
+      setNextChallengeAt(null);
+      setChallengeCountdown('--:--:--');
+      return;
+    }
+    try {
+      const storedRaw = await AsyncStorage.getItem(DAILY_CHALLENGE_STORAGE_KEY);
+      if (!storedRaw) {
+        await scheduleNextChallenge();
+        return;
+      }
+      const stored = JSON.parse(storedRaw) as Partial<StoredChallengeState> | null;
+      const deadline = typeof stored?.nextChallengeAt === 'string' ? stored.nextChallengeAt : null;
+      if (!deadline) {
+        await scheduleNextChallenge();
+        return;
+      }
+      const deadlineMs = new Date(deadline).getTime();
+      if (Number.isNaN(deadlineMs) || deadlineMs <= Date.now()) {
+        await scheduleNextChallenge();
+        return;
+      }
+      const foundGame = featuredGames.find((game) => game.id === stored?.gameId) ?? pickRandomGame();
+      setChallengeGame(foundGame ?? null);
+      setNextChallengeAt(deadline);
+      if (!foundGame) {
+        await persistChallengeState({ nextChallengeAt: deadline, gameId: null });
+      }
+    } catch (err) {
+      console.warn('Failed to restore challenge state', err);
+      await scheduleNextChallenge();
+    }
+  }, [featuredGames, pickRandomGame, scheduleNextChallenge, persistChallengeState]);
+
+  useEffect(() => {
+    hydrateChallengeFromStorage();
+  }, [hydrateChallengeFromStorage]);
+
+  useEffect(() => {
+    if (!nextChallengeAt) {
+      setChallengeCountdown('--:--:--');
+      return;
+    }
+    const deadlineMs = new Date(nextChallengeAt).getTime();
+    if (Number.isNaN(deadlineMs)) {
+      scheduleNextChallenge().catch(() => undefined);
+      return;
+    }
+    const updateCountdown = () => {
+      const diff = deadlineMs - Date.now();
+      if (diff <= 0) {
+        setChallengeCountdown('00:00:00');
+        scheduleNextChallenge().catch(() => undefined);
+        return;
+      }
+      setChallengeCountdown(formatCountdown(diff));
+    };
+    updateCountdown();
+    const timer = setInterval(updateCountdown, 1000);
+    return () => clearInterval(timer);
+  }, [nextChallengeAt, scheduleNextChallenge]);
 
   useFocusEffect(
     useCallback(() => {
@@ -68,11 +185,6 @@ export default function HomeScreen() {
       };
     }, [])
   );
-
-  const featuredGames: Game[] = featuredData.featuredGames ?? [];
-  
-  const gameCategories = categoriesData.gameCategories ?? [];
-
   const gamesPlayed = stats.totalGames;
   const gamesWon = stats.wins;
   const gamesLost = stats.losses;
@@ -149,7 +261,10 @@ export default function HomeScreen() {
           <View style={styles.countdownBanner}>
             <View>
               <Text style={{ color: "#000000", fontSize: 12 }}>Next Daily Challenge</Text>
-              <Text style={{ color: "#000000", fontSize: 16, fontWeight: "700" }}>{featuredGames?.[0]?.timeLeft ?? "00:00:00"}</Text>
+              <Text style={{ color: "#000000", fontSize: 16, fontWeight: "700" }}>{challengeCountdown}</Text>
+              <Text style={{ color: "#4B5563", fontSize: 12, marginTop: 2 }}>
+                {challengeGame ? `Challenge #${challengeGame.id}: ${challengeGame.title}` : 'Awaiting next challenge'}
+              </Text>
             </View>
             <View style={{ backgroundColor: "rgba(255,255,255,0.15)", padding: 10, borderRadius: 12 }}>
               <Clock color="#000000" size={20} />
