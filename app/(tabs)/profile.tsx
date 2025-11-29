@@ -15,6 +15,8 @@ type ProfileForm = {
   username: string;
   email: string;
   phone: string;
+  createdAt?: string;
+  walletLinkedAt?: string;
 };
 
 export default function ProfileScreen() {
@@ -25,6 +27,8 @@ export default function ProfileScreen() {
     username: "",
     email: "player@example.com",
     phone: "+1 (555) 123-4567",
+    createdAt: undefined,
+    walletLinkedAt: undefined,
   });
   const [userStats, setUserStats] = useState<UserStats>({ totalGames: 0, wins: 0, losses: 0 });
   const [history, setHistory] = useState<GameHistoryEntry[]>([]);
@@ -83,6 +87,8 @@ export default function ProfileScreen() {
               username: cloudProfile.username?.trim().length ? cloudProfile.username.trim() : prev.username,
               email: cloudProfile.email?.trim().length ? cloudProfile.email.trim() : prev.email,
               phone: cloudProfile.phone?.trim().length ? cloudProfile.phone.trim() : prev.phone,
+              createdAt: cloudProfile.createdAt ?? prev.createdAt,
+              walletLinkedAt: cloudProfile.walletLinkedAt ?? prev.walletLinkedAt,
             }));
           }
 
@@ -114,6 +120,7 @@ export default function ProfileScreen() {
           username: profileData.username.trim(),
           email: profileData.email.trim().toLowerCase(),
           phone: profileData.phone.trim(),
+          createdAt: profileData.createdAt ?? new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         },
         { merge: true }
@@ -126,6 +133,18 @@ export default function ProfileScreen() {
   };
 
   const greetingName = profileData.username || profileData.fullName.split(" ")[0] || "Player";
+
+  const memberSinceLabel = useMemo(() => {
+    const sourceDate = profileData.walletLinkedAt ?? profileData.createdAt;
+    if (!sourceDate) {
+      return "Wallet linked date unknown";
+    }
+    const date = new Date(sourceDate);
+    if (Number.isNaN(date.getTime())) {
+      return "Wallet linked date unknown";
+    }
+    return `Wallet linked ${date.toLocaleDateString(undefined, { month: "short", year: "numeric" })}`;
+  }, [profileData.createdAt, profileData.walletLinkedAt]);
 
   const renderPaymentItem = (item: GameHistoryEntry) => {
     const amountStyle = item.outcome === "win" ? styles.paymentItemAmountPositive : styles.paymentItemAmountNegative;
@@ -236,7 +255,7 @@ export default function ProfileScreen() {
               </View>
 
               <Text style={styles.profileName}>Hey {greetingName}!</Text>
-              <Text style={styles.profileSince}>Player since Jan 2023</Text>
+              <Text style={styles.profileSince}>{memberSinceLabel}</Text>
             </View>
 
             {/* Profile Stats */}
