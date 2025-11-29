@@ -2,6 +2,7 @@ import { initializeApp } from "firebase/app";
 // import { getAnalytics } from "firebase/analytics";
 import { initializeAuth, getReactNativePersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
     apiKey: "AIzaSyD4iE1aIi40Fry75O_2VByjSRyZaxiB-Ls",
@@ -20,3 +21,4 @@ export const auth = initializeAuth(app, {
     persistence: getReactNativePersistence()
 });
 export const db = getFirestore(app);
+export const storage = getStorage(app);

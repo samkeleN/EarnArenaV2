@@ -7,8 +7,10 @@ import { useFocusEffect } from "@react-navigation/native";
 import { GameHistoryEntry, getGameHistory, getUserStats, UserStats, formatHistoryDate } from "@/utils/GameHistory";
 import { retryPendingReward } from "@/utils/RewardWorkflow";
 import { useAccount, useWalletClient } from "wagmi";
-import { auth, db } from "@/utils/FirebaseConfig";
+import * as ImagePicker from "expo-image-picker";
+import { auth, db, storage } from "@/utils/FirebaseConfig";
 import { doc, getDoc, setDoc } from "firebase/firestore";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 
 type ProfileForm = {
   fullName: string;
@@ -17,6 +19,7 @@ type ProfileForm = {
   phone: string;
   createdAt?: string;
   walletLinkedAt?: string;
+  avatar?: string;
 };
 
 export default function ProfileScreen() {
@@ -29,10 +32,12 @@ export default function ProfileScreen() {
     phone: "+1 (555) 123-4567",
     createdAt: undefined,
     walletLinkedAt: undefined,
+    avatar: undefined,
   });
   const [userStats, setUserStats] = useState<UserStats>({ totalGames: 0, wins: 0, losses: 0 });
   const [history, setHistory] = useState<GameHistoryEntry[]>([]);
   const [retryingId, setRetryingId] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const { address } = useAccount();
   const { data: walletClient } = useWalletClient();
 
@@ -89,6 +94,7 @@ export default function ProfileScreen() {
               phone: cloudProfile.phone?.trim().length ? cloudProfile.phone.trim() : prev.phone,
               createdAt: cloudProfile.createdAt ?? prev.createdAt,
               walletLinkedAt: cloudProfile.walletLinkedAt ?? prev.walletLinkedAt,
+              avatar: cloudProfile.avatar ?? prev.avatar,
             }));
           }
 
@@ -133,6 +139,7 @@ export default function ProfileScreen() {
   };
 
   const greetingName = profileData.username || profileData.fullName.split(" ")[0] || "Player";
+  const avatarUri = profileData.avatar && profileData.avatar.length > 5 ? profileData.avatar : "https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=900&auto=format&fit=crop&q=60";
 
   const memberSinceLabel = useMemo(() => {
     const sourceDate = profileData.walletLinkedAt ?? profileData.createdAt;
@@ -194,6 +201,47 @@ export default function ProfileScreen() {
     }
   }, [address, refreshHistory, walletClient]);
 
+  const handlePickAvatar = useCallback(async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      Alert.alert("Profile", "You need to sign in before updating your avatar.");
+      return;
+    }
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert("Permission required", "We need access to your photos to update the avatar.");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (result.canceled || !result.assets?.length) {
+        return;
+      }
+      const asset = result.assets[0];
+      if (!asset.uri) {
+        return;
+      }
+      setUploadingAvatar(true);
+      const response = await fetch(asset.uri);
+      const blob = await response.blob();
+      const avatarRef = ref(storage, `avatars/${currentUser.uid}.jpg`);
+      await uploadBytes(avatarRef, blob, { contentType: asset.mimeType ?? blob.type ?? 'image/jpeg' });
+      const downloadUrl = await getDownloadURL(avatarRef);
+      await setDoc(doc(db, "users", currentUser.uid), { avatar: downloadUrl, updatedAt: new Date().toISOString() }, { merge: true });
+      setProfileData(prev => ({ ...prev, avatar: downloadUrl }));
+      Alert.alert("Profile", "Avatar updated successfully.");
+    } catch (err) {
+      console.warn("Failed to update avatar", err);
+      Alert.alert("Profile", "Unable to upload avatar right now. Please try again later.");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }, []);
+
   const renderAwaitingItem = (item: GameHistoryEntry, index: number) => (
     <TouchableOpacity
       key={item.id}
@@ -246,12 +294,17 @@ export default function ProfileScreen() {
             <View style={{ alignItems: "center", marginBottom: 8 }}>
               <View style={{ position: "relative" }}>
                 <Image
-                  source={{ uri: "https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=900&auto=format&fit=crop&q=60" }}
+                  source={{ uri: avatarUri }}
                   style={styles.profileAvatar}
                 />
-                <TouchableOpacity style={styles.avatarEditButton}>
+                <TouchableOpacity style={styles.avatarEditButton} onPress={handlePickAvatar} activeOpacity={0.85}>
                   <Camera color="#FFFFFF" size={16} />
                 </TouchableOpacity>
+                {uploadingAvatar && (
+                  <View style={styles.avatarOverlay}>
+                    <ActivityIndicator color="#FFFFFF" />
+                  </View>
+                )}
               </View>
 
               <Text style={styles.profileName}>Hey {greetingName}!</Text>
