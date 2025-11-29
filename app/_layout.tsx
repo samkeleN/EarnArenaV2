@@ -31,17 +31,17 @@ const clipboardClient = {
 const queryClient = new QueryClient();
 
 // 1. Get projectId at https://dashboard.reown.com
-const projectId = "b8e39dfb697ba26ac5a77a4b29b35604"; // This project ID will only work for Expo Go. Use your own project ID for production.
+const projectId = "450b967f38d97ffc1b3078afbaf9eb91"; // This project ID will only work for Expo Go. Use your own project ID for production.
 
 // 2. Create config
 const metadata = {
-  name: "AppKit RN",
-  description: "AppKit RN Example",
-  url: "https://reown.com/appkit",
+  name: "EarnArena",
+  description: "EarnArena - Play games, win crypto!",
+  url: "https://earnarena.com",
   icons: ["https://avatars.githubusercontent.com/u/179229932"],
   redirect: {
-    native: "YOUR_APP_SCHEME://",
-    universal: "YOUR_APP_UNIVERSAL_LINK.com",
+    native: "earnarena://",
+    universal: "earnarena.com",
   },
 };
 
