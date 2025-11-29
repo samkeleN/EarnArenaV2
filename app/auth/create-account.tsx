@@ -6,8 +6,9 @@ import { useAccount } from 'wagmi';
 
 import { storage } from '@/utils/StorageUtil';
 import { USER_PROFILE_KEY } from '@/constants/storageKeys';
-import { auth } from '@/utils/FirebaseConfig';
+import { auth, db } from '@/utils/FirebaseConfig';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 
 
 interface SignupForm {
@@ -19,7 +20,7 @@ interface SignupForm {
 const initialForm: SignupForm = { username: '', email: '', password: '' };
 
 export default function CreateAccountScreen() {
-  const { isConnected } = useAccount();
+  const { isConnected, address } = useAccount();
   const router = useRouter();
   const [form, setForm] = useState<SignupForm>(initialForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -71,8 +72,25 @@ export default function CreateAccountScreen() {
         password: sanitizedPassword,
       });
 
-      const user = await createUserWithEmailAndPassword(auth, sanitizedEmail, sanitizedPassword);
+      const userCredential = await createUserWithEmailAndPassword(auth, sanitizedEmail, sanitizedPassword);
 
+      try {
+        const walletAddress = address?.trim() ?? '';
+        await setDoc(
+          doc(db, 'users', userCredential.user.uid),
+          {
+            username: sanitizedUsername,
+            email: sanitizedEmail,
+            walletAddress: walletAddress || null,
+            walletLinkedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      } catch (walletSyncError) {
+        console.warn('Failed to sync wallet address to Firestore', walletSyncError);
+      }
+
+      
       Alert.alert('Account created', 'Your profile is ready. Please sign in to continue.', [
         {
           text: 'Go to sign in',

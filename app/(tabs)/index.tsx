@@ -11,12 +11,12 @@ import categoriesData from "../../data/gameCategories.json";
 import globalStyles from "../../styles/global.styles"; 
 import { useRouter } from 'expo-router';
 import { Game } from '@/models/Game';
-import { storage } from '@/utils/StorageUtil';
-import { USER_PROFILE_KEY } from '@/constants/storageKeys';
 import { useFocusEffect } from '@react-navigation/native';
 import { sendToMasterWallet } from '@/utils/WalletTransfer';
 import { useAccount, useWalletClient } from 'wagmi';
 import { getUserStats, UserStats } from '@/utils/GameHistory';
+import { auth, db } from '@/utils/FirebaseConfig';
+import { doc, getDoc } from 'firebase/firestore';
 
 const styles = globalStyles;
 
@@ -34,12 +34,25 @@ export default function HomeScreen() {
       let active = true;
       (async () => {
         try {
-          const [profile, loadedStats] = await Promise.all([
-            storage.getItem<{ username?: string; fullName?: string }>(USER_PROFILE_KEY),
+          const [profileSnapshot, loadedStats] = await Promise.all([
+            (async () => {
+              const currentUser = auth.currentUser;
+              if (!currentUser) {
+                return null;
+              }
+              try {
+                const ref = doc(db, 'users', currentUser.uid);
+                const snap = await getDoc(ref);
+                return snap.exists() ? (snap.data() as { username?: string; fullName?: string }) : null;
+              } catch (profileErr) {
+                console.warn('Failed to load Firebase profile', profileErr);
+                return null;
+              }
+            })(),
             getUserStats(),
           ]);
           if (!active) return;
-          const candidate = profile?.username?.trim() || profile?.fullName?.trim();
+          const candidate = profileSnapshot?.username?.trim() || profileSnapshot?.fullName?.trim();
           setDisplayName(candidate && candidate.length > 0 ? candidate : 'Player');
           setStats(loadedStats);
         } catch (err) {
