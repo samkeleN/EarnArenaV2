@@ -1,20 +1,26 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, Switch, Text, Button, DevSettings, Alert } from 'react-native';
-import { storage } from '@/utils/StorageUtil';
+import { View, StyleSheet, Switch, Text, DevSettings, Alert, ActivityIndicator } from 'react-native';
 import { WalletInfoView } from './WalletInfoView';
-
-const STORAGE_KEY = 'APP_NETWORK';
+import { auth, db } from '@/utils/FirebaseConfig';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 export function NetworkSwitcher() {
   const [enabled, setEnabled] = useState(false); // true = mainnet, false = testnet
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
-        const val = await storage.getItem<string>(STORAGE_KEY);
-        if (val === 'mainnet') setEnabled(true);
-        else setEnabled(false);
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+          setEnabled(false);
+          return;
+        }
+        const ref = doc(db, 'users', currentUser.uid);
+        const snap = await getDoc(ref);
+        const preferredNetwork = snap.exists() ? (snap.data()?.preferredNetwork as string | undefined) : undefined;
+        setEnabled(preferredNetwork === 'mainnet');
       } catch (e) {
         // ignore
       } finally {
@@ -24,10 +30,16 @@ export function NetworkSwitcher() {
   }, []);
 
   const toggle = async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      Alert.alert('Network', 'Please sign in before changing network preferences.');
+      return;
+    }
     const newVal = !enabled;
     setEnabled(newVal);
+    setSaving(true);
     try {
-      await storage.setItem(STORAGE_KEY, newVal ? 'mainnet' : 'testnet');
+      await setDoc(doc(db, 'users', currentUser.uid), { preferredNetwork: newVal ? 'mainnet' : 'testnet', updatedAt: new Date().toISOString() }, { merge: true });
       Alert.alert('Network changed', 'Network preference saved. Please reload the app to apply the change.');
       // Try to reload in dev
       if (__DEV__ && DevSettings && DevSettings.reload) {
@@ -35,16 +47,26 @@ export function NetworkSwitcher() {
       }
     } catch (e) {
       Alert.alert('Error', 'Could not save network preference.');
+      setEnabled(!newVal);
+    } finally {
+      setSaving(false);
     }
   };
 
-  if (loading) return null;
+  if (loading) {
+    return (
+      <View style={[styles.container, { alignItems: 'center' }]}>
+        <ActivityIndicator size="small" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <View style={styles.row}>
         <Text style={styles.label}>Use Mainnet</Text>
-        <Switch onValueChange={toggle} value={enabled} />
+        <Switch onValueChange={toggle} value={enabled} disabled={saving} />
+        {saving && <ActivityIndicator size="small" style={{ marginLeft: 8 }} />}
       <WalletInfoView/>
 
       </View>
