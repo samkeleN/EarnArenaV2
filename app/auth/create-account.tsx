@@ -83,6 +83,7 @@ export default function CreateAccountScreen() {
             email: sanitizedEmail,
             walletAddress: walletAddress || null,
             walletLinkedAt: new Date().toISOString(),
+            preferredNetwork: 'testnet',
           },
           { merge: true }
         );
