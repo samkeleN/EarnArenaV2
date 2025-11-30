@@ -135,6 +135,18 @@ EarnArenaV2 is a mobile gaming platform built with React Native and TypeScript t
 
 6.  **Play Games and Earn Rewards**: Play games, win, and receive rewards directly to your connected wallet.
 
+
+## Run for Testing (Expo Go)
+
+> 🚧 *This app is currently available for testing via Expo Go.*  
+> To try it out:
+
+1. Install **Expo Go** on your mobile device (from Google Play Store or Apple App Store). :contentReference[oaicite:1]{index=1}  
+2. Open the Expo Go app paste the following URL into Expo Go:   
+exp://u.expo.dev/update/0c810fc6-f423-4569-995a-57ffcfddac84 
+3. The app should load — you can then test the app features: wallet connection, games, authentication, etc.
+4. Please use Celo testnet at the moment since its still under development.
+
 ## How to Use
 
 This application serves as a gaming platform where users can engage in various games and earn rewards. Here's how to use it:
@@ -204,7 +216,6 @@ This project is unlicensed.
 - Repository Name: EarnArenaV2
 - Repository URL: https://github.com/samkeleN/EarnArenaV2
 - Author: samkeleN
-- Role: Software Engineer
 - Contact: +27 63 3274 367
 
 ⭐ Like this project? Give it a star on [GitHub](https://github.com/samkeleN/EarnArenaV2)!
