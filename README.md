@@ -141,11 +141,11 @@ EarnArenaV2 is a mobile gaming platform built with React Native and TypeScript t
 > 🚧 *This app is currently available for testing via Expo Go.*  
 > To try it out:
 
-1. Install **Expo Go** on your mobile device (from Google Play Store or Apple App Store). :contentReference[oaicite:1]{index=1}  
+1. Install **Expo Go** on your mobile device (from Google Play Store or Apple App Store).  
 2. Open the Expo Go app paste the following URL into Expo Go:   
-exp://u.expo.dev/update/0c810fc6-f423-4569-995a-57ffcfddac84 
+[Project URL](exp://u.expo.dev/update/0c810fc6-f423-4569-995a-57ffcfddac84) 
 3. The app should load — you can then test the app features: wallet connection, games, authentication, etc.
-4. Please use Celo testnet at the moment since its still under development.
+4. Please use **Celo testnet** for best experience since, at the moment since its still under development.
 
 ## How to Use
 
