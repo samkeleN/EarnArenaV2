@@ -204,7 +204,8 @@ This project is unlicensed.
 - Repository Name: EarnArenaV2
 - Repository URL: https://github.com/samkeleN/EarnArenaV2
 - Author: samkeleN
-- Contact: (No contact information provided, consider adding if available)
+- Role: Software Engineer
+- Contact: +27 63 3274 367
 
 ⭐ Like this project? Give it a star on [GitHub](https://github.com/samkeleN/EarnArenaV2)!
 
