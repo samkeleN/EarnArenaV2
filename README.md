@@ -7,7 +7,7 @@
 
 ## Description
 
-EarnArenaV2 is a mobile gaming platform built with React Native and TypeScript that allows users to participate in various games and earn rewards. The application integrates with blockchain technologies via libraries such as `@reown/appkit-react-native` and `wagmi` to manage user wallets and transactions. It leverages Firebase for user authentication, data storage, and real-time updates. Key features include a game library, profile management, ranking dashboards, and wallet integration for reward payouts.
+EarnArenaV2 is a mobile gaming platform built with React Native and TypeScript on Celo ecosystem, that allows users to participate in various games and earn rewards. The application integrates with blockchain technologies via libraries such as `@reown/appkit-react-native` and `wagmi` to manage user wallets and transactions. It leverages Firebase for user authentication, data storage, and real-time updates. Key features include a game library, profile management, ranking dashboards, and wallet integration for reward payouts.
 
 ## Table of Contents
 
@@ -44,8 +44,9 @@ EarnArenaV2 is a mobile gaming platform built with React Native and TypeScript t
 ## Tech Stack
 
 - **Primary Language**: TypeScript 🟦
-- **Frameworks**: React Native, Next.js, Expo ⚛️
+- **Frameworks**: React Native, Expo ⚛️
 - **Blockchain Libraries**: `@reown/appkit-react-native`, `@reown/appkit-wagmi-react-native`, `wagmi`, `viem` 🔗
+- **Blockchain Network: `Celo and Celo Sepolia Testnet`
 - **Database**: Firebase Firestore 🔥
 - **UI Libraries**: `lucide-react-native`, `@expo/vector-icons` 🎨
 - **Navigation**: `expo-router`, `@react-navigation/*` 🧭
