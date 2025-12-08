@@ -101,7 +101,6 @@ export default function CardMatchGame() {
     }
 
   }, [address, gameTitle, paymentAmount, rewardWin, router, walletClient]);
-  const recordOutcomeRef = useRef(recordOutcome);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const clearTimer = useCallback(() => {
@@ -110,10 +109,6 @@ export default function CardMatchGame() {
       timerRef.current = null;
     }
   }, []);
-
-  useEffect(() => {
-    recordOutcomeRef.current = recordOutcome;
-  }, [recordOutcome]);
 
   // Initialize the game
   const initializeGame = () => {
@@ -292,7 +287,6 @@ export default function CardMatchGame() {
   useEffect(() => {
     return () => {
       clearTimer();
-      void recordOutcomeRef.current("loss");
     };
   }, [clearTimer]);
 
