@@ -196,7 +196,7 @@ export default function HomeScreen() {
   const handleGamePress = (game: any) => {
     setSelectedGame(game);
     setShowPaymentModal(true);
-  };
+  };``
 
   const handleConfirmPayment = async (overrideAmount?: string) => {
     setShowPaymentModal(false);

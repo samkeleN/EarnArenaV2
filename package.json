@@ -59,12 +59,13 @@
     "react-native-web": "^0.21.0",
     "react-native-worklets": "0.5.1",
     "text-encoding": "0.7.0",
-    "viem": "^2.38.5",
+    "viem": "2.38.5",
     "wagmi": "^2.19.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@types/react": "~19.1.10",
+    "eas-cli": "^16.28.0",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
     "typescript": "~5.9.2"
@@ -73,7 +74,6 @@
     "@walletconnect/ethereum-provider": "2.22.4",
     "@walletconnect/universal-provider": "2.22.4",
     "valtio": "2.1.8",
-    "viem": "2.38.5",
     "fast-redact": "3.5.0",
     "hono": "4.10.2"
   },

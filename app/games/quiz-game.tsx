@@ -94,12 +94,6 @@ export default function QuizGameScreen() {
     }
 
   }, [address, gameTitle, paymentAmount, rewardWin, router, walletClient]);
-  const logOutcomeRef = useRef(logOutcome);
-
-  useEffect(() => {
-    logOutcomeRef.current = logOutcome;
-  }, [logOutcome]);
-
   const handleExit = useCallback(() => {
     void logOutcome('loss');
     router.back();
@@ -188,12 +182,6 @@ export default function QuizGameScreen() {
     const outcome = score >= threshold ? 'win' : 'loss';
     void logOutcome(outcome);
   }, [gameOver, logOutcome, score]);
-
-  useEffect(() => {
-    return () => {
-      void logOutcomeRef.current('loss');
-    };
-  }, []);
 
   const getOptionStyle = (index: number) => {
     if (!isAnswered) return [localStyles.optionButton, localStyles.optionDefault];

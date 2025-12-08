@@ -94,12 +94,6 @@ export default function PuzzleGameScreen() {
     }
 
   }, [address, gameTitle, paymentAmount, rewardWin, router, walletClient]);
-  const recordOutcomeRef = useRef(recordOutcome);
-
-  useEffect(() => {
-    recordOutcomeRef.current = recordOutcome;
-  }, [recordOutcome]);
-
   const initializeBoard = useCallback(() => {
     recordedRef.current = false;
     const initialTiles: Tile[] = [];
@@ -178,12 +172,6 @@ export default function PuzzleGameScreen() {
   };
 
   useEffect(() => { initializeBoard(); }, [initializeBoard]);
-
-  useEffect(() => {
-    return () => {
-      void recordOutcomeRef.current('loss');
-    };
-  }, []);
 
   // Prepare tiles in board order for rendering (position -> tile)
   const renderedTiles = useMemo<Tile[]>(() => {
