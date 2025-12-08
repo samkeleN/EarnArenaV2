@@ -188,7 +188,7 @@ export default function HomeScreen() {
       active = false;
     };
   }, [isFocused]);
-  const gamesPlayed = stats.totalGames;
+  const gamesPlayed = stats.totalGames - 1;
   const gamesWon = stats.wins;
   const gamesLost = stats.losses;
   const winRate = gamesPlayed > 0 ? Math.round((gamesWon / gamesPlayed) * 100) : 0;
