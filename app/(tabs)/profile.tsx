@@ -26,10 +26,10 @@ export default function ProfileScreen() {
   const styles = globalStyles;
   const [isEditing, setIsEditing] = useState(false);
   const [profileData, setProfileData] = useState<ProfileForm>({
-    fullName: "EarnArena Player",
+    fullName: "",
     username: "",
-    email: "player@example.com",
-    phone: "+1 (555) 123-4567",
+    email: "",
+    phone: "",
     createdAt: undefined,
     walletLinkedAt: undefined,
     avatar: undefined,
@@ -42,7 +42,10 @@ export default function ProfileScreen() {
   const { data: walletClient } = useWalletClient();
 
   const awaitingPayments = useMemo(() => history.filter(entry => entry.status === "pending"), [history]);
-  const completedHistory = useMemo(() => history.filter(entry => entry.status !== "pending"), [history]);
+  const completedHistory = useMemo(
+    () => history.filter(entry => entry.status !== "pending" && entry.kind === "entry"),
+    [history]
+  );
 
   const refreshHistory = useCallback(async () => {
     try {
@@ -138,8 +141,11 @@ export default function ProfileScreen() {
     }
   };
 
+  const buildAvatarUrl = (name: string) =>
+  `https://api.dicebear.com/7.x/initials/png?seed=${encodeURIComponent(name || "Player")}&radius=50&backgroundColor=ffedd5`;
+  
   const greetingName = profileData.username || profileData.fullName.split(" ")[0] || "Player";
-  const avatarUri = profileData.avatar && profileData.avatar.length > 5 ? profileData.avatar : "https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=900&auto=format&fit=crop&q=60";
+  const avatarUri = profileData.avatar && profileData.avatar.length > 5 ? profileData.avatar : buildAvatarUrl(greetingName);
 
   const memberSinceLabel = useMemo(() => {
     const sourceDate = profileData.walletLinkedAt ?? profileData.createdAt;
@@ -156,11 +162,19 @@ export default function ProfileScreen() {
   const renderPaymentItem = (item: GameHistoryEntry) => {
     const amountStyle = item.outcome === "win" ? styles.paymentItemAmountPositive : styles.paymentItemAmountNegative;
     const shortHash = item.txHash && item.txHash.length > 10 ? `${item.txHash.slice(0, 6)}...${item.txHash.slice(-4)}` : item.txHash;
+    const isEntry = item.kind === "entry";
 
     return (
       <View key={item.id} style={styles.paymentItem}>
         <View style={styles.paymentItemLeft}>
-          <Text style={styles.paymentItemGame}>{item.gameName}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap" }}>
+            <Text style={styles.paymentItemGame}>{item.gameName}</Text>
+            {isEntry && (
+              <View style={{ marginLeft: 8, paddingHorizontal: 10, paddingVertical: 2, borderRadius: 999, backgroundColor: "#FEF3C7" }}>
+                <Text style={{ color: "#92400E", fontSize: 12, fontWeight: "700" }}>Entry Fee</Text>
+              </View>
+            )}
+          </View>
           <View style={{ flexDirection: "row", alignItems: "center", marginTop: 6 }}>
             <Calendar color="#95A5A6" size={14} />
             <Text style={styles.paymentItemDate}>{formatHistoryDate(item.playedAt)}</Text>
@@ -448,7 +462,7 @@ export default function ProfileScreen() {
 
           <View>
             {completedHistory.length === 0 ? (
-              <Text style={{ textAlign: "center", color: "#6B7280", marginTop: 8 }}>No completed payments yet.</Text>
+              <Text style={{ textAlign: "center", color: "#6B7280", marginTop: 8 }}>No completed entry payments yet.</Text>
             ) : (
               completedHistory.map(renderPaymentItem)
             )}

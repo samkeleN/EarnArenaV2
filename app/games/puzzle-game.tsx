@@ -3,7 +3,6 @@ import { ArrowLeft, Clock, RotateCcw, Trophy } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Dimensions, Image, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { recordGameResult } from '@/utils/GameHistory';
-import { rewardPlayerForGameWin } from '@/utils/RewardWorkflow';
 import { useAccount, useWalletClient } from 'wagmi';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -55,45 +54,38 @@ export default function PuzzleGameScreen() {
     return legacyEntry.length > 0 ? legacyEntry : '0';
   }, [params?.amount, params?.entry]);
 
-  const rewardWin = useCallback(async () => {
-    if (!address) {
-      throw new Error("Connect your wallet to receive rewards.");
-    }
-
-    await rewardPlayerForGameWin({
-      gameName: gameTitle,
-      rewardAmount: rewardDisplay,
-      playerWalletAddress: address,
-      walletClient,
-    });
-  }, [address, gameTitle, rewardDisplay, walletClient]);
-
   const recordOutcome = useCallback(async (outcome: 'win' | 'loss') => {
     if (recordedRef.current) return;
     recordedRef.current = true;
 
-    if (outcome === 'win') {
-      try {
-        await rewardWin();
-      } catch (err) {
-        console.warn('Failed to initiate reward payout', err);
-        Alert.alert("Reward Pending", err instanceof Error ? err.message : "Unable to send reward right now.");
-      }
-      return;
-    }
+    const amount = outcome === 'win' ? rewardDisplay : paymentAmount;
+    const statusProps = outcome === 'win'
+      ? { status: 'pending' as const, statusMessage: 'Awaiting manual payout' }
+      : {};
 
-    const amount = paymentAmount;
+    const gameIdParam = typeof params?.gameId === 'string' && params.gameId.length > 0
+      ? params.gameId
+      : typeof params?.id === 'string' && params.id.length > 0
+        ? params.id
+        : null;
+
     try {
       await recordGameResult({
         gameName: gameTitle,
         outcome,
         amount,
+        playerAddress: address ?? null,
+        gameId: gameIdParam,
+        ...statusProps,
       });
+      if (outcome === 'win') {
+        Alert.alert('Win Logged', 'Your puzzle victory has been recorded for manual payout.');
+      }
     } catch (err) {
       console.warn('Failed to record puzzle outcome', err);
     }
 
-  }, [address, gameTitle, paymentAmount, rewardWin, router, walletClient]);
+  }, [address, gameTitle, params?.gameId, params?.id, paymentAmount, rewardDisplay]);
   const initializeBoard = useCallback(() => {
     recordedRef.current = false;
     const initialTiles: Tile[] = [];
@@ -179,16 +171,46 @@ export default function PuzzleGameScreen() {
     return [...tiles].sort((a, b) => a.currentPosition - b.currentPosition);
   }, [tiles]);
 
+  const exitWithoutLogging = useCallback(() => {
+    setIsPlaying(false);
+    router.back();
+  }, [router]);
+
+  const handleConfirmedExit = useCallback(() => {
+    void (async () => {
+      try {
+        await recordOutcome('loss');
+      } catch (err) {
+        console.warn('Failed to record manual puzzle exit', err);
+      } finally {
+        exitWithoutLogging();
+      }
+    })();
+  }, [exitWithoutLogging, recordOutcome]);
+
+  const handleExitPress = useCallback(() => {
+    if (gameCompleted) {
+      exitWithoutLogging();
+      return;
+    }
+
+    Alert.alert(
+      'Leave Game?',
+      'If you exit now, this game will be marked as lost.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Exit', style: 'destructive', onPress: handleConfirmedExit },
+      ],
+    );
+  }, [exitWithoutLogging, gameCompleted, handleConfirmedExit]);
+
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.headerButton}
-          onPress={() => {
-            void recordOutcome('loss');
-            router.back();
-          }}
+          onPress={handleExitPress}
         >
           <ArrowLeft color="#2563EB" size={20} />
           <Text style={styles.headerButtonText}>Back</Text>

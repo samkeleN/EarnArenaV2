@@ -14,6 +14,8 @@ import {
 export type GameOutcome = 'win' | 'loss';
 export type PaymentStatus = 'pending' | 'completed' | 'failed';
 
+export type HistoryKind = 'entry' | 'result';
+
 export type GameHistoryEntry = {
   id: string;
   gameName: string;
@@ -23,6 +25,10 @@ export type GameHistoryEntry = {
   status: PaymentStatus;
   statusMessage?: string;
   txHash?: string | null;
+  kind: HistoryKind;
+  amountValue: string;
+  playerAddress?: string | null;
+  gameId?: string | number | null;
 };
 
 type PersistedGameHistoryEntry = Omit<GameHistoryEntry, 'status'> & Partial<Pick<GameHistoryEntry, 'status' | 'statusMessage' | 'txHash'>>;
@@ -100,6 +106,10 @@ const withDefaults = (entry: PersistedGameHistoryEntry): GameHistoryEntry => ({
   status: entry.status ?? 'completed',
   statusMessage: entry.statusMessage,
   txHash: typeof entry.txHash === 'string' ? entry.txHash : null,
+  kind: entry.kind === 'entry' ? 'entry' : 'result',
+  amountValue: typeof entry.amountValue === 'string' ? entry.amountValue : normaliseAmount(entry.amountDisplay ?? '0'),
+  playerAddress: entry.playerAddress ?? null,
+  gameId: entry.gameId ?? null,
 });
 
 const normaliseAmount = (amount: string) => {
@@ -112,9 +122,25 @@ const normaliseAmount = (amount: string) => {
 };
 
 export const formatAmountDisplay = (amount: string, outcome: GameOutcome) => {
-  const core = normaliseAmount(amount);
+  const normalized = normaliseAmount(amount);
+  if (!normalized) {
+    return outcome === 'win' ? '+0' : '-0';
+  }
+
+  const sanitized = normalized.replace(/,/g, '.');
+  const numeric = Number.parseFloat(sanitized);
+  if (!Number.isFinite(numeric) || numeric === 0) {
+    return outcome === 'win' ? '+0' : '-0';
+  }
+
+  const absolute = Math.abs(numeric);
+  const formatted = absolute.toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 6,
+  });
+
   const prefix = outcome === 'win' ? '+' : '-';
-  return `${prefix}${core}`;
+  return `${prefix}${formatted}`;
 };
 
 export const formatHistoryDate = (isoString: string) => {
@@ -138,10 +164,14 @@ export async function recordGameResult(params: {
   status?: PaymentStatus;
   statusMessage?: string;
   txHash?: string | null;
+  playerAddress?: string | null;
+  gameId?: string | number | null;
 }) {
-  const { gameName, outcome, amount, recordedAt, status, statusMessage, txHash } = params;
+  const { gameName, outcome, amount, recordedAt, status, statusMessage, txHash, playerAddress, gameId } = params;
   const uid = requireUserId();
   const stats = await readStatsSnapshot(uid);
+
+  const amountValue = normaliseAmount(amount);
 
   const entry = removeUndefined({
     id: generateId(),
@@ -152,6 +182,10 @@ export async function recordGameResult(params: {
     status: status ?? 'completed',
     statusMessage: typeof statusMessage === 'string' ? statusMessage : undefined,
     txHash: typeof txHash === 'string' ? txHash : null,
+    kind: 'result' as HistoryKind,
+    amountValue,
+    playerAddress: playerAddress ?? null,
+    gameId: gameId ?? null,
   }) as GameHistoryEntry;
 
   const nextStats: UserStats = {
@@ -170,6 +204,42 @@ export async function recordGameResult(params: {
 
   enforceHistoryLimit(uid).catch(err => console.warn('History limit enforcement failed', err));
 
+  return entry;
+}
+
+export async function recordGameEntryPayment(params: {
+  gameName: string;
+  amount: string;
+  recordedAt?: string | Date;
+  status?: PaymentStatus;
+  statusMessage?: string;
+  txHash?: string | null;
+  playerAddress?: string | null;
+  gameId?: string | number | null;
+}) {
+  const { gameName, amount, recordedAt, status, statusMessage, txHash, playerAddress, gameId } = params;
+  const uid = requireUserId();
+
+  const amountValue = normaliseAmount(amount);
+
+  const entry = removeUndefined({
+    id: generateId(),
+    gameName: gameName || 'Unknown Game',
+    outcome: 'loss' as GameOutcome,
+    amountDisplay: formatAmountDisplay(amount, 'loss'),
+    playedAt: typeof recordedAt === 'string' ? recordedAt : (recordedAt ?? new Date()).toISOString(),
+    status: status ?? 'completed',
+    statusMessage: typeof statusMessage === 'string' ? statusMessage : undefined,
+    txHash: typeof txHash === 'string' ? txHash : null,
+    kind: 'entry' as HistoryKind,
+    amountValue,
+    playerAddress: playerAddress ?? null,
+    gameId: gameId ?? null,
+  }) as GameHistoryEntry;
+
+  const historyRef = doc(getHistoryCollectionRef(uid), entry.id);
+  await setDoc(historyRef, entry, { merge: true });
+  enforceHistoryLimit(uid).catch(err => console.warn('History limit enforcement failed', err));
   return entry;
 }
 

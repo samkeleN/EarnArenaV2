@@ -15,9 +15,11 @@ import { Game } from '@/models/Game';
 import { useIsFocused } from '@react-navigation/native';
 import { sendToMasterWallet } from '@/utils/WalletTransfer';
 import { useAccount, useWalletClient } from 'wagmi';
-import { getUserStats, UserStats } from '@/utils/GameHistory';
+import { getUserStats, UserStats, recordGameEntryPayment } from '@/utils/GameHistory';
 import { auth, db } from '@/utils/FirebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
+import { celoSepolia } from '@/src/chains/celoChains';
+import { getActiveWalletChainId, requestWalletAddEthereumChain, requestWalletSwitchEthereumChain } from '@/utils/requestWalletNetworkAdd';
 
 const styles = globalStyles;
 
@@ -196,11 +198,13 @@ export default function HomeScreen() {
   const handleGamePress = (game: any) => {
     setSelectedGame(game);
     setShowPaymentModal(true);
-  };``
+  };
 
   const handleConfirmPayment = async (overrideAmount?: string) => {
-    setShowPaymentModal(false);
-    if (!selectedGame) return;
+    if (!selectedGame) {
+      setShowPaymentModal(false);
+      return;
+    }
 
     const normalizedOverride = typeof overrideAmount === 'string' ? overrideAmount.trim() : '';
     const normalizedAmount = typeof selectedGame?.amount === 'string' ? selectedGame.amount.trim() : '';
@@ -209,17 +213,61 @@ export default function HomeScreen() {
 
     const paidAmount = normalizedOverride || normalizedAmount || normalizedEntryFee || normalizedEntry;
 
-    if (paidAmount.length > 0) {
-      if (address) {
-        try {
-          await sendToMasterWallet({ amount: paidAmount, from: address, walletClient });
-        } catch (err) {
-          console.warn('Transfer to master wallet failed', err);
-        }
-      } else {
-        console.warn('Cannot send payment to master wallet: no connected wallet address');
-      }
+    if (!address) {
+      console.warn('Cannot start game: no connected wallet address');
+      return;
     }
+
+    if (paidAmount.length === 0) {
+      console.warn('Cannot start game: no entry fee provided');
+      return;
+    }
+
+    const targetChainId = celoSepolia.id;
+    const detectedChainId = await getActiveWalletChainId({ walletClient });
+    if (detectedChainId !== targetChainId) {
+      try {
+        await requestWalletAddEthereumChain({ chain: celoSepolia, walletClient });
+      } catch (err) {
+        console.warn('Failed to add Celo Sepolia to wallet', err);
+      }
+      try {
+        await requestWalletSwitchEthereumChain({ chain: celoSepolia, walletClient });
+      } catch (err) {
+        console.warn('Failed to switch wallet to Celo Sepolia', err);
+        return;
+      }
+      const postSwitchChainId = await getActiveWalletChainId({ walletClient });
+      if (postSwitchChainId !== targetChainId) {
+        console.warn('Wallet did not switch to Celo Sepolia as expected; aborting payment.');
+        return;
+      }
+      return;
+    }
+
+    try {
+      const transfer = await sendToMasterWallet({ amount: paidAmount, from: address, walletClient });
+      if (!transfer?.txHash && !transfer?.raw) {
+        console.warn('Payment did not complete; staying on payment screen');
+        return;
+      }
+      try {
+        await recordGameEntryPayment({
+          gameName: typeof selectedGame.title === 'string' ? selectedGame.title : '',
+          amount: paidAmount,
+          txHash: transfer.txHash ?? null,
+          playerAddress: address,
+          gameId: selectedGame.id ?? null,
+        });
+      } catch (historyErr) {
+        console.warn('Failed to record game entry payment', historyErr);
+      }
+    } catch (err) {
+      console.warn('Transfer to master wallet failed', err);
+      return;
+    }
+
+    setShowPaymentModal(false);
     const params = {
       fromPayment: 'true',
       title: typeof selectedGame.title === 'string' ? selectedGame.title : '',
@@ -442,7 +490,7 @@ export default function HomeScreen() {
                       <Text style={{ color: "#6B7280" }}>Reward</Text>
                       <View style={{ flexDirection: "row", alignItems: "center" }}>
                         <Coins color="#F59E0B" size={16} />
-                        <Text style={{ fontWeight: "700", marginLeft: 8 }}> {selectedGame?.reward ?? selectedGame?.subtitle ?? "R 0"}</Text>
+                        <Text style={{ fontWeight: "700", marginLeft: 8 }}> {selectedGame?.reward ?? selectedGame?.subtitle ?? "0 Celo"}</Text>
                       </View>
                     </View>
                   </View>
@@ -459,7 +507,7 @@ export default function HomeScreen() {
                       onPress={() => handleConfirmPayment(selectedGame?.amount)}
                       style={styles.confirmButton}
                     >
-                      <Text style={styles.confirmButtonText}>Pay {selectedGame?.amount ?? "R 0"}</Text>
+                      <Text style={styles.confirmButtonText}>Pay {selectedGame?.amount ?? "0 Celo"}</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
