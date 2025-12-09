@@ -5,8 +5,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, ScrollView, Text, TouchableOpacity, View, StyleSheet, Animated, Easing } from 'react-native';
 import { recordGameResult } from '@/utils/GameHistory';
 
-import { useAccount, useWalletClient } from 'wagmi';
-import { rewardPlayerForGameWin } from '@/utils/RewardWorkflow';
+import { useAccount } from 'wagmi';
 
 // Using StyleSheet for styling instead of nativewind `className`.-
 // Quiz question type
@@ -39,7 +38,6 @@ export default function QuizGameScreen() {
   const recordedRef = useRef(false);
   const resultAnim = useRef(new Animated.Value(0)).current;
   const { address } = useAccount();
-  const { data: walletClient } = useWalletClient();
 
   const currentQuestion = quizData[currentQuestionIndex];
 
@@ -60,41 +58,42 @@ export default function QuizGameScreen() {
     return legacyEntry.length > 0 ? legacyEntry : '0';
   }, [params?.amount, params?.entry]);
 
-  const rewardWin = useCallback(async () => {
-    if (!address) {
-      throw new Error("Connect your wallet to receive rewards.");
+  const gameIdParam = useMemo(() => {
+    if (typeof params?.gameId === 'string' && params.gameId.trim().length > 0) {
+      return params.gameId.trim();
     }
-
-    await rewardPlayerForGameWin({
-      gameName: gameTitle,
-      rewardAmount: rewardDisplay,
-      playerWalletAddress: address,
-      walletClient,
-    });
-  }, [address, gameTitle, rewardDisplay, walletClient]);
+    if (typeof params?.id === 'string' && params.id.trim().length > 0) {
+      return params.id.trim();
+    }
+    return null;
+  }, [params?.gameId, params?.id]);
 
   const logOutcome = useCallback(async (outcome: 'win' | 'loss') => {
     if (recordedRef.current) return;
     recordedRef.current = true;
 
-    if (outcome === 'win') {
-      try {
-        await rewardWin();
-      } catch (err) {
-        console.warn('Failed to reward quiz winner', err);
-        Alert.alert("Reward Pending", err instanceof Error ? err.message : "Unable to start reward transaction.");
-      }
-      return;
-    }
+    const amount = outcome === 'win' ? rewardDisplay : paymentAmount;
+    const statusProps = outcome === 'win'
+      ? { status: 'pending' as const, statusMessage: 'Awaiting manual payout' }
+      : {};
 
-    const amount = paymentAmount;
     try {
-      await recordGameResult({ gameName: gameTitle, outcome, amount });
+      await recordGameResult({
+        gameName: gameTitle,
+        outcome,
+        amount,
+        playerAddress: address ?? null,
+        gameId: gameIdParam,
+        ...statusProps,
+      });
+      if (outcome === 'win') {
+        Alert.alert('Win Logged', 'Great job! Your win has been recorded for manual payout.');
+      }
     } catch (err) {
       console.warn('Failed to record quiz result', err);
     }
 
-  }, [address, gameTitle, paymentAmount, rewardWin, router, walletClient]);
+  }, [address, gameIdParam, gameTitle, paymentAmount, rewardDisplay]);
 
   const exitWithoutLogging = useCallback(() => {
     router.back();

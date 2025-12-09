@@ -5,7 +5,6 @@ import { Alert, Dimensions, Modal, ScrollView, StyleSheet, Text, TouchableOpacit
 import globalStyles, { theme } from "../../styles/global.styles";
 import { recordGameResult } from "@/utils/GameHistory";
 import { useAccount, useWalletClient } from "wagmi";
-import { rewardPlayerForGameWin } from "@/utils/RewardWorkflow";
 
 const { width } = Dimensions.get("window");
 const CARD_SIZE = (width - 60) / 4;
@@ -62,45 +61,38 @@ export default function CardMatchGame() {
     return "0";
   }, [params?.amount, params?.entry]);
 
-  const rewardWin = useCallback(async () => {
-    if (!address) {
-      throw new Error("Connect your wallet to receive rewards.");
-    }
-
-    await rewardPlayerForGameWin({
-      gameName: gameTitle,
-      rewardAmount: rewardDisplay,
-      playerWalletAddress: address,
-      walletClient,
-    });
-  }, [address, gameTitle, rewardDisplay, walletClient]);
-
   const recordOutcome = useCallback(async (outcome: "win" | "loss") => {
     if (recordedRef.current) return;
     recordedRef.current = true;
 
-    if (outcome === "win") {
-      try {
-        await rewardWin();
-      } catch (err) {
-        console.warn("Failed to reward winner", err);
-        Alert.alert("Reward Pending", err instanceof Error ? err.message : "Unable to start reward transaction.");
-      }
-      return;
-    }
+    const amount = outcome === "win" ? rewardDisplay : paymentAmount;
+    const statusProps = outcome === "win"
+      ? { status: "pending" as const, statusMessage: "Awaiting manual payout" }
+      : {};
 
-    const amount = paymentAmount;
+    const gameIdParam = typeof params?.gameId === "string" && params.gameId.length > 0
+      ? params.gameId
+      : typeof params?.id === "string" && params.id.length > 0
+        ? params.id
+        : null;
+
     try {
       await recordGameResult({
         gameName: gameTitle,
         outcome,
         amount,
+        playerAddress: address ?? null,
+        gameId: gameIdParam,
+        ...statusProps,
       });
+      if (outcome === "win") {
+        Alert.alert("Win Logged", "Great job! Your win has been recorded for manual payout.");
+      }
     } catch (err) {
       console.warn("Failed to record game result", err);
     }
 
-  }, [address, gameTitle, paymentAmount, rewardWin, router, walletClient]);
+  }, [address, gameTitle, params?.gameId, params?.id, paymentAmount, rewardDisplay]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const clearTimer = useCallback(() => {
