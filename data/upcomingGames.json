@@ -1,41 +1,41 @@
 {
-    "gameCategories": [
+    "upcomingGames": [
         {
             "id": 1,
             "title": "Quiz Master",
-            "subtitle": "+ 0.5 CELO",
+            "subtitle": "+ 0.005 CELO",
             "image": "https://images.unsplash.com/photo-1523049100492-510708b6020b?w=900&auto=format&fit=crop&q=60",
             "color": "#FF6B6B",
-            "cost": "0.1 CELO"
+            "cost": "0.01 CELO"
         },
         {
             "id": 2,
             "title": "Puzzle Pro",
-            "subtitle": "+ 0.5 CELO",
+            "subtitle": "+ 0.005 CELO",
             "image": "https://images.unsplash.com/photo-1559077138-3e27e1cdb95a?w=900&auto=format&fit=crop&q=60",
             "color": "#4ECDC4",
-            "cost": "0.15 CELO"
+            "cost": "0.015 CELO"
         },
         {
             "id": 3,
             "title": "Card Match",
-            "subtitle": "+ 0.6 CELO",
+            "subtitle": "+ 0.006 CELO",
             "image": "https://images.unsplash.com/photo-1640251314219-be6eb294446b?w=900&auto=format&fit=crop&q=60",
             "color": "#FFD93D",
-            "cost": "0.12 CELO"
+            "cost": "0.012 CELO"
         },
         {
             "id": 4,
             "title": "Speed Challenge",
-            "subtitle": "+ 0.9 CELO",
+            "subtitle": "+ 0.009 CELO",
             "image": "https://images.unsplash.com/photo-1533917588497-c0687c7b3601?w=900&auto=format&fit=crop&q=60",
             "color": "#95E1D3",
-            "cost": "0.2 CELO"
+            "cost": "0.02 CELO"
         },
         {
             "id": 5,
             "title": "Memory Lane",
-            "subtitle": "+ 0.55 CELO",
+            "subtitle": "+ 0.055 CELO",
             "image": "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=900&auto=format&fit=crop&q=60",
             "color": "#FF9F1C",
             "cost": "0.1 CELO"
@@ -43,10 +43,10 @@
         {
             "id": 6,
             "title": "Logic Lords",
-            "subtitle": "+ 0.8 CELO",
+            "subtitle": "+ 0.008 CELO",
             "image": "https://images.unsplash.com/photo-1519125323398-675f0ddb6308?w=900&auto=format&fit=crop&q=60",
             "color": "#2EC4B6",
-            "cost": "0.18 CELO "
+            "cost": "0.018 CELO "
         }
     ]
 }

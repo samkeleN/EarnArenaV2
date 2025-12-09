@@ -179,16 +179,46 @@ export default function PuzzleGameScreen() {
     return [...tiles].sort((a, b) => a.currentPosition - b.currentPosition);
   }, [tiles]);
 
+  const exitWithoutLogging = useCallback(() => {
+    setIsPlaying(false);
+    router.back();
+  }, [router]);
+
+  const handleConfirmedExit = useCallback(() => {
+    void (async () => {
+      try {
+        await recordOutcome('loss');
+      } catch (err) {
+        console.warn('Failed to record manual puzzle exit', err);
+      } finally {
+        exitWithoutLogging();
+      }
+    })();
+  }, [exitWithoutLogging, recordOutcome]);
+
+  const handleExitPress = useCallback(() => {
+    if (gameCompleted) {
+      exitWithoutLogging();
+      return;
+    }
+
+    Alert.alert(
+      'Leave Game?',
+      'If you exit now, this game will be marked as lost.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Exit', style: 'destructive', onPress: handleConfirmedExit },
+      ],
+    );
+  }, [exitWithoutLogging, gameCompleted, handleConfirmedExit]);
+
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.headerButton}
-          onPress={() => {
-            void recordOutcome('loss');
-            router.back();
-          }}
+          onPress={handleExitPress}
         >
           <ArrowLeft color="#2563EB" size={20} />
           <Text style={styles.headerButtonText}>Back</Text>

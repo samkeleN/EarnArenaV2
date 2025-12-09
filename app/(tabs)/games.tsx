@@ -7,6 +7,9 @@ import globalStyles from "../../styles/global.styles";
 
 import mockGameData from "../../data/mockGame.json";
 import { sendToMasterWallet } from '@/utils/WalletTransfer';
+import { recordGameEntryPayment } from '@/utils/GameHistory';
+import { celoSepolia } from '@/src/chains/celoChains';
+import { getActiveWalletChainId, requestWalletAddEthereumChain, requestWalletSwitchEthereumChain } from '@/utils/requestWalletNetworkAdd';
 
 const mockGames = mockGameData.mockGameData;
 
@@ -42,8 +45,8 @@ export default function GamesLibraryScreen() {
   };
 
   const handleConfirmPayment = async (overrideAmount?: string) => {
-    setShowPaymentModal(false);
     if (!selectedGame) {
+      setShowPaymentModal(false);
       return;
     }
 
@@ -53,17 +56,63 @@ export default function GamesLibraryScreen() {
     const normalizedEntry = typeof selectedGame?.entry === 'string' ? selectedGame.entry.trim() : '';
     const paidAmount = normalizedOverride || normalizedAmount || normalizedEntryFee || normalizedEntry;
 
-    if (paidAmount.length > 0) {
-      if (address) {
-        try {
-          await sendToMasterWallet({ amount: paidAmount, from: address, walletClient });
-        } catch (err) {
-          console.warn('Transfer to master wallet failed', err);
-        }
-      } else {
-        console.warn('Cannot send payment to master wallet: no connected wallet address');
-      }
+    if (!address) {
+      console.warn('Cannot start game: no connected wallet address');
+      return;
     }
+
+    if (paidAmount.length === 0) {
+      console.warn('Cannot start game: no entry fee provided');
+      return;
+    }
+
+    const targetChainId = celoSepolia.id;
+    
+    const detectedChainId = await getActiveWalletChainId({ walletClient });
+    if (detectedChainId !== targetChainId) {
+      try {
+        await requestWalletAddEthereumChain({ chain: celoSepolia, walletClient });
+      } catch (err) {
+        console.warn('Failed to add Celo Sepolia to wallet', err);
+        return;
+      }
+      try {
+        await requestWalletSwitchEthereumChain({ chain: celoSepolia, walletClient });
+      } catch (err) {
+        console.warn('Failed to switch wallet to Celo Sepolia', err);
+        return;
+      }
+      const postSwitchChainId = await getActiveWalletChainId({ walletClient });
+      if (postSwitchChainId !== targetChainId) {
+        console.warn('Wallet did not switch to Celo Sepolia as expected; aborting payment.');
+        return;
+      }
+      return;
+    }
+
+    try {
+      const transfer = await sendToMasterWallet({ amount: paidAmount, from: address, walletClient });
+      if (!transfer?.txHash && !transfer?.raw) {
+        console.warn('Payment did not complete; staying on payment screen');
+        return;
+      }
+      try {
+        await recordGameEntryPayment({
+          gameName: typeof selectedGame.title === 'string' ? selectedGame.title : '',
+          amount: paidAmount,
+          txHash: transfer.txHash ?? null,
+          playerAddress: address,
+          gameId: selectedGame.id ?? null,
+        });
+      } catch (historyErr) {
+        console.warn('Failed to record game entry payment', historyErr);
+      }
+    } catch (err) {
+      console.warn('Transfer to master wallet failed', err);
+      return;
+    }
+
+    setShowPaymentModal(false);
 
     const params = {
       fromPayment: 'true',

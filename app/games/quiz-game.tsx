@@ -1,8 +1,8 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ChevronLeft, Clock, Star, Trophy } from 'lucide-react-native';
+import { AlertCircle, CheckCircle2, ChevronLeft, Clock, Star, Trophy } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, ScrollView, Text, TouchableOpacity, View, StyleSheet } from 'react-native';
+import { Alert, ScrollView, Text, TouchableOpacity, View, StyleSheet, Animated, Easing } from 'react-native';
 import { recordGameResult } from '@/utils/GameHistory';
 
 import { useAccount, useWalletClient } from 'wagmi';
@@ -37,6 +37,7 @@ export default function QuizGameScreen() {
   const [isAnswered, setIsAnswered] = useState(false);
   const [showPaymentNotice, setShowPaymentNotice] = useState(false);
   const recordedRef = useRef(false);
+  const resultAnim = useRef(new Animated.Value(0)).current;
   const { address } = useAccount();
   const { data: walletClient } = useWalletClient();
 
@@ -49,7 +50,7 @@ export default function QuizGameScreen() {
 
   const rewardDisplay = useMemo(() => {
     const raw = typeof params?.reward === 'string' ? params.reward.trim() : '';
-    return raw.length > 0 ? raw : '1 CELO';
+    return raw.length > 0 ? raw : '0.0003 CELO';
   }, [params?.reward]);
 
   const paymentAmount = useMemo(() => {
@@ -94,10 +95,38 @@ export default function QuizGameScreen() {
     }
 
   }, [address, gameTitle, paymentAmount, rewardWin, router, walletClient]);
-  const handleExit = useCallback(() => {
-    void logOutcome('loss');
+
+  const exitWithoutLogging = useCallback(() => {
     router.back();
-  }, [logOutcome, router]);
+  }, [router]);
+
+  const handleConfirmedExit = useCallback(() => {
+    void (async () => {
+      try {
+        await logOutcome('loss');
+      } catch (err) {
+        console.warn('Failed to record manual quiz exit', err);
+      } finally {
+        exitWithoutLogging();
+      }
+    })();
+  }, [exitWithoutLogging, logOutcome]);
+
+  const handleExit = useCallback(() => {
+    if (gameOver) {
+      exitWithoutLogging();
+      return;
+    }
+
+    Alert.alert(
+      'Leave Game?',
+      'If you exit now, this game will be marked as lost.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Exit', style: 'destructive', onPress: handleConfirmedExit },
+      ],
+    );
+  }, [exitWithoutLogging, gameOver, handleConfirmedExit]);
 
   useEffect(() => {
     recordedRef.current = false;
@@ -174,14 +203,20 @@ export default function QuizGameScreen() {
     setTimeLeft(30);
     setGameOver(false);
     setIsAnswered(false);
+    resultAnim.setValue(0);
   };
 
   useEffect(() => {
     if (!gameOver) return;
-    const threshold = Math.ceil(quizData.length * 0.6);
-    const outcome = score >= threshold ? 'win' : 'loss';
-    void logOutcome(outcome);
-  }, [gameOver, logOutcome, score]);
+    Animated.timing(resultAnim, {
+      toValue: 1,
+      duration: 400,
+      easing: Easing.out(Easing.back(1.2)),
+      useNativeDriver: true,
+    }).start();
+    const allCorrect = score === quizData.length;
+    void logOutcome(allCorrect ? 'win' : 'loss');
+  }, [gameOver, logOutcome, quizData.length, resultAnim, score]);
 
   const getOptionStyle = (index: number) => {
     if (!isAnswered) return [localStyles.optionButton, localStyles.optionDefault];
@@ -198,27 +233,49 @@ export default function QuizGameScreen() {
   };
 
   if (gameOver) {
+    const allCorrect = score === quizData.length;
+    const gradientColors = allCorrect
+      ? (['#047857', '#16A34A'] as const)
+      : (['#991B1B', '#EF4444'] as const);
+    const iconColor = '#FFFFFF';
+    const scale = resultAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0.8, 1],
+    });
+
     return (
-      <LinearGradient colors={['#3498db', '#8e44ad']} className="flex-1">
-        <View className="flex-1 items-center justify-center p-6">
-          <View className="bg-white rounded-3xl p-8 items-center shadow-lg w-full max-w-md">
-            <Trophy size={80} color="#f1c40f" className="mb-6" />
-            <Text className="text-3xl font-bold text-gray-800 mb-2">Quiz Completed!</Text>
-            <Text className="text-xl text-gray-600 mb-6">Your final score:</Text>
-            <View className="flex-row items-center mb-8">
-              <Star size={40} color="#f1c40f" fill="#f1c40f" />
-              <Text className="text-5xl font-bold text-gray-800 ml-3">{score}/{quizData.length}</Text>
+      <LinearGradient colors={gradientColors} style={localStyles.resultGradient}>
+        <Animated.View style={[localStyles.resultCard, { transform: [{ scale }] }]}> 
+          <View style={[localStyles.resultHeader, allCorrect ? localStyles.resultHeaderWin : localStyles.resultHeaderLose]}>
+            {allCorrect ? (
+              <CheckCircle2 size={60} color={iconColor} />
+            ) : (
+              <AlertCircle size={60} color={iconColor} />
+            )}
+            <Text style={localStyles.resultTitle}>{allCorrect ? 'Perfect Score!' : 'Better Luck Next Time'}</Text>
+            <Text style={localStyles.resultSubtitle}>
+              {allCorrect
+                ? `You mastered all ${quizData.length} questions.`
+                : 'A single miss keeps the streak alive for next round.'}
+            </Text>
+          </View>
+
+          <View style={localStyles.resultBody}>
+            <View style={localStyles.scoreSummary}>
+              <Star size={32} color={allCorrect ? '#10B981' : '#EF4444'} fill={allCorrect ? '#10B981' : '#EF4444'} />
+              <Text style={localStyles.scoreText}>{score}/{quizData.length}</Text>
             </View>
-            <View className="flex-row gap-4 w-full">
-              <TouchableOpacity className="flex-1 bg-gray-200 py-4 rounded-2xl items-center" onPress={handleExit}>
-                <Text className="text-gray-800 font-bold text-lg">Exit</Text>
+            <View style={localStyles.resultButtons}>
+              <TouchableOpacity style={localStyles.secondaryButton} onPress={handleExit}>
+                <Text style={localStyles.secondaryButtonText}>Exit</Text>
               </TouchableOpacity>
-              <TouchableOpacity className="flex-1 bg-blue-500 py-4 rounded-2xl items-center" onPress={resetGame}>
-                <Text className="text-white font-bold text-lg">Play Again</Text>
+              <TouchableOpacity style={localStyles.primaryButton} onPress={resetGame}>
+                <Trophy size={18} color="#FFFFFF" />
+                <Text style={localStyles.primaryButtonText}>Play Again</Text>
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </Animated.View>
       </LinearGradient>
     );
   }
@@ -329,4 +386,19 @@ const localStyles = StyleSheet.create({
   scoreLabel: { color: '#6B7280' },
   scoreWrap: { flexDirection: 'row', alignItems: 'center' },
   scoreText: { fontSize: 18, fontWeight: '700', marginLeft: 8 },
+  resultGradient: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  resultCard: { width: '100%', maxWidth: 360, backgroundColor: '#FFFFFF', borderRadius: 24, padding: 24, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 12, elevation: 6 },
+  resultHeader: { alignItems: 'center', marginBottom: 24, paddingVertical: 16, paddingHorizontal: 20, borderRadius: 20 },
+  resultHeaderWin: { backgroundColor: '#ECFDF5' },
+  resultHeaderLose: { backgroundColor: '#FEF2F2' },
+  
+  resultTitle: { fontSize: 24, fontWeight: '800', color: '#111827', marginTop: 16 },
+  resultSubtitle: { fontSize: 14, color: '#4B5563', marginTop: 8, textAlign: 'center' },
+  resultBody: { alignItems: 'center', gap: 24 },
+  scoreSummary: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#F3F4F6', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 999 },
+  primaryButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#2563EB', paddingVertical: 12, borderRadius: 16, flex: 1, gap: 8 },
+  primaryButtonText: { color: '#FFFFFF', fontWeight: '700', fontSize: 16 },
+  secondaryButton: { backgroundColor: '#E5E7EB', paddingVertical: 12, borderRadius: 16, flex: 1, alignItems: 'center' },
+  secondaryButtonText: { color: '#111827', fontWeight: '700', fontSize: 16 },
+  resultButtons: { flexDirection: 'row', gap: 16, width: '100%' },
 });

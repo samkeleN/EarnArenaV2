@@ -276,13 +276,40 @@ export default function CardMatchGame() {
     initializeGame();
   };
 
-  const handleBackToHome = () => {
+  const navigateHome = useCallback(() => {
     clearTimer();
     setIsPlaying(false);
     setShowResultModal(false);
-    void recordOutcome("loss");
     router.push("/(tabs)");
-  };
+  }, [clearTimer, router]);
+
+  const handleConfirmedExit = useCallback(() => {
+    void (async () => {
+      try {
+        await recordOutcome("loss");
+      } catch (err) {
+        console.warn("Failed to record manual exit", err);
+      } finally {
+        navigateHome();
+      }
+    })();
+  }, [navigateHome, recordOutcome]);
+
+  const handleBackToHome = useCallback(() => {
+    if (gameOver) {
+      navigateHome();
+      return;
+    }
+
+    Alert.alert(
+      "Leave Game?",
+      "If you exit now, this game will be marked as lost.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Exit", style: "destructive", onPress: handleConfirmedExit },
+      ],
+    );
+  }, [gameOver, handleConfirmedExit, navigateHome]);
 
   useEffect(() => {
     return () => {

@@ -64,6 +64,7 @@ export default function RootLayout() {
     (async () => {
       try {
         const stored = await storage.getItem<string>('APP_NETWORK');
+        console.log('Stored network:', stored);
         const envNetwork = process.env.APP_NETWORK;
         const network = stored ?? envNetwork ?? (__DEV__ ? 'testnet' : 'mainnet');
         const selected = network === 'mainnet' ? celo : celoSepolia;
