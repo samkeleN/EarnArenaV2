@@ -145,7 +145,7 @@ EarnArena is a mobile gaming platform built with React Native and TypeScript tha
 2. Open the Expo Go app paste the following URL into Expo Go:   
 
 ```url 
-exp://u.expo.dev/update/0c810fc6-f423-4569-995a-57ffcfddac84 
+exp://u.expo.dev/update/ee133fcf-7a00-467f-8803-500bfa5fac94
 ```
 
 3. The app should load — you can then test the app features: wallet connection, games, authentication, etc.
