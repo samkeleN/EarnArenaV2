@@ -24,9 +24,12 @@ export function MobileWave() {
     );
   }, [rotationAnimation]);
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${rotationAnimation.value}deg` }],
-  }));
+  const animatedStyle = useAnimatedStyle(() => {
+    'worklet';
+    return {
+      transform: [{ rotate: `${rotationAnimation.value}deg` }],
+    };
+  });
 
   return (
     <Animated.View style={animatedStyle}>

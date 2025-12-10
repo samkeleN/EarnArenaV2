@@ -5,6 +5,7 @@ import { WagmiAdapter } from "@reown/appkit-wagmi-react-native";
 import { SolanaAdapter, PhantomConnector, SolflareConnector } from "@reown/appkit-solana-react-native";
 import { BitcoinAdapter } from "@reown/appkit-bitcoin-react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
 import { arbitrum, celo, celoSepolia, mainnet, polygon } from "@wagmi/core/chains";
 import { WagmiProvider } from "wagmi";
 
