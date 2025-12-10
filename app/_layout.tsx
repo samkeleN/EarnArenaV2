@@ -1,4 +1,5 @@
 import 'text-encoding';
+import 'react-native-reanimated';
 import "@walletconnect/react-native-compat";
 import { AppKit, AppKitProvider, bitcoin, createAppKit, solana } from "@reown/appkit-react-native";
 import { WagmiAdapter } from "@reown/appkit-wagmi-react-native";
@@ -13,7 +14,6 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
 import * as Clipboard from 'expo-clipboard';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
