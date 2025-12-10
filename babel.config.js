@@ -3,8 +3,7 @@ module.exports = function (api) {
   return {
     presets: [["babel-preset-expo", { unstable_transformImportMeta: true }]],
     plugins: [
-      // Other plugins first (e.g., for NativeWind, module-resolver)...
-      'react-native-reanimated/plugin',     // Must be last
+      'react-native-reanimated/plugin',  
     ],
   };
 };
